@@ -43,6 +43,12 @@ const LABELS = {
     wind: "Wind",
     inputs: "Inputs",
     why: "Why",
+    coversTotal: "Covers configured",
+    coversShading: "Shading",
+    coversHeating: "Solar heating",
+    coversOverridden: "Manually overridden",
+    coversStorm: "Storm protection",
+    enabled: "Enabled",
     dryRunNotice: "**Dry run.** Nothing is being moved; this is what would happen.",
   },
   de: {
@@ -73,6 +79,12 @@ const LABELS = {
     wind: "Wind",
     inputs: "Eingangswerte",
     why: "Warum",
+    coversTotal: "Konfigurierte Rollläden",
+    coversShading: "Beschattung",
+    coversHeating: "Sonnenheizen",
+    coversOverridden: "Manueller Eingriff",
+    coversStorm: "Sturmschutz",
+    enabled: "Aktiviert",
     dryRunNotice: "**Testlauf.** Es wird nichts bewegt; das ist, was passieren würde.",
   },
 };
@@ -168,6 +180,17 @@ function inputRows(entity, t) {
   }));
 }
 
+function statusRows(entity, t) {
+  return [
+    ["total", t.coversTotal],
+    ["shading", t.coversShading],
+    ["heating", t.coversHeating],
+    ["overridden", t.coversOverridden],
+    ["storm", t.coversStorm],
+    ["enabled", t.enabled],
+  ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
+}
+
 function overviewView(hub, covers, t) {
   const sections = [];
 
@@ -177,7 +200,11 @@ function overviewView(hub, covers, t) {
       cards.push({ type: "tile", entity: hub.entities.switch });
     }
     if (hub.entities.sensor) {
-      cards.push({ type: "tile", entity: hub.entities.sensor });
+      // The count alone does not say what it counts, so break it down.
+      cards.push({
+        type: "entities",
+        entities: [hub.entities.sensor, ...statusRows(hub.entities.sensor, t)],
+      });
     }
     if (hub.entities.binary_sensor) {
       cards.push({ type: "tile", entity: hub.entities.binary_sensor });

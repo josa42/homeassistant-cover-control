@@ -138,3 +138,71 @@ async def test_setup_survives_an_unavailable_frontend(
 
     assert entry.state is ConfigEntryState.LOADED
     assert hass.states.get("sensor.raffstore_decision").state == "cooling"
+
+
+_GENERATE_HARNESS = r"""
+const fs = require("fs");
+const vm = require("vm");
+const defs = new Map();
+const registry = { get: (t) => defs.get(t), define: (t, c) => defs.set(t, c) };
+defs.set("home-assistant", class {});  // registry already settled
+const window = { customElements: registry };
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), vm.createContext({
+  window, customElements: registry, HTMLElement: class {}, setTimeout: () => {}, Date, Object,
+}));
+const hass = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+defs.get("ll-strategy-dashboard-cover-control").generate({}, hass)
+  .then((dashboard) => console.log(JSON.stringify(dashboard)));
+"""
+
+
+def test_overview_shows_every_status_attribute(tmp_path) -> None:
+    """The status count alone does not say what it counts.
+
+    The expected keys come from the sensor itself, so an attribute added there
+    later fails this test until the dashboard shows it too.
+    """
+    import json
+    import shutil
+    import subprocess
+    from types import SimpleNamespace
+
+    from custom_components.cover_control.sensor import HubStatusSensor
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    coordinator = SimpleNamespace(
+        runtimes={},
+        master_enabled=True,
+        entry=SimpleNamespace(entry_id="e", title="Cover Control"),
+    )
+    expected = set(HubStatusSensor(coordinator).extra_state_attributes)
+
+    status = "sensor.cover_control_status"
+    hass = {
+        "locale": {"language": "en"},
+        "devices": {"hub": {"id": "hub", "name": "Cover Control", "via_device_id": None}},
+        "entities": {status: {"entity_id": status, "platform": "cover_control", "device_id": "hub"}},
+        "states": {status: {"entity_id": status, "state": "0", "attributes": {}}},
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    dashboard = json.loads(result.stdout)
+
+    rows = [
+        row
+        for view in dashboard["views"]
+        for section in view.get("sections", [])
+        for card in section["cards"]
+        for row in card.get("entities", [])
+        if isinstance(row, dict) and row.get("entity") == status and row.get("type") == "attribute"
+    ]
+    assert {row["attribute"] for row in rows} == expected
+    assert all(row.get("name") for row in rows), "every row needs a readable name"
+

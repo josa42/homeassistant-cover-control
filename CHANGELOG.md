@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- **The overview breaks the status count down.** The status sensor only showed
+  a number. The dashboard now lists what it counts: covers configured, shading,
+  solar heating, manually overridden and under storm protection, and whether
+  control is switched on.
+
 ### Fixed
 
 - **The dashboard strategy loads reliably.** Most page loads failed with
