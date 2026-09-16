@@ -58,6 +58,14 @@ fi
 print_info "Pulling latest changes..."
 git pull origin "$CURRENT_BRANCH"
 
+# The release dates the Unreleased section itself. Without one there is nothing
+# to describe the release, which is a mistake to catch before the slow checks.
+CHANGELOG_FILE="CHANGELOG.md"
+if ! grep -q '^## Unreleased$' "$CHANGELOG_FILE" 2>/dev/null; then
+    print_error "${CHANGELOG_FILE} has no '## Unreleased' section to release"
+    exit 1
+fi
+
 # Tests and lint run before any file is touched, so a failure leaves the working
 # tree exactly as it was.
 VENV_PYTHON="venv/bin/python"
@@ -92,7 +100,7 @@ restore_version_files() {
     local code=$?
     [ "$code" -eq 0 ] && return
     print_warn "Release failed, restoring version files..."
-    git checkout -- "$MANIFEST_FILE" "$INIT_FILE" 2>/dev/null || true
+    git checkout -- "$MANIFEST_FILE" "$INIT_FILE" "$CHANGELOG_FILE" 2>/dev/null || true
 }
 trap restore_version_files EXIT
 
@@ -119,7 +127,16 @@ else
     sed -i "s/^STRATEGY_VERSION = \"[^\"]*\"/STRATEGY_VERSION = \"${VERSION}\"/" "$INIT_FILE"
 fi
 
-git add "$MANIFEST_FILE" "$INIT_FILE"
+RELEASE_DATE=$(date +%Y-%m-%d)
+print_info "Dating the Unreleased section in ${CHANGELOG_FILE}..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^## Unreleased$/## ${VERSION} - ${RELEASE_DATE}/" "$CHANGELOG_FILE"
+else
+    sed -i "s/^## Unreleased$/## ${VERSION} - ${RELEASE_DATE}/" "$CHANGELOG_FILE"
+fi
+print_info "${CHANGELOG_FILE} → ## ${VERSION} - ${RELEASE_DATE}"
+
+git add "$MANIFEST_FILE" "$INIT_FILE" "$CHANGELOG_FILE"
 # Releasing the version already in the manifest (the first release, say)
 # changes nothing, and an empty commit would abort the whole release.
 if git diff --cached --quiet; then
