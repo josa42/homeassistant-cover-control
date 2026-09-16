@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hassfest
+        uses: home-assistant/actions/hassfest@master
+      - name: HACS
+        uses: hacs/action@main
+        with:
+          category: integration
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: |
+          uv venv --python 3.14 .venv
+          uv pip install --python .venv/bin/python \
+            homeassistant==2026.9.2 pytest-homeassistant-custom-component ruff
+      - name: Lint
+        run: |
+          .venv/bin/python -m ruff check custom_components tests
+          .venv/bin/python -m ruff format --check custom_components tests
+      - name: Test
+        run: .venv/bin/python -m pytest tests/ -q
