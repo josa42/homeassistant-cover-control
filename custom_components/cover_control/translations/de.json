@@ -125,6 +125,42 @@
           "neutral": "Neutral",
           "disabled": "Deaktiviert",
           "unavailable": "Nicht verfügbar"
+        },
+        "state_attributes": {
+          "reason_code": {
+            "name": "Grund",
+            "state": {
+              "master_disabled": "Global ausgeschaltet",
+              "cover_disabled": "Für diesen Rollladen ausgeschaltet",
+              "cover_unavailable": "Rollladen nicht verfügbar",
+              "storm_wind": "Sturmschutz",
+              "window_is_open": "Fenster ist offen",
+              "manual_override": "Von Hand bewegt",
+              "sun_not_on_window": "Sonne nicht auf dem Fenster",
+              "not_bright": "Nicht hell genug",
+              "temp_neutral": "Temperatur neutral",
+              "shading": "Beschattung",
+              "solar_heating": "Sonnenheizen",
+              "episode_ended": "Episode beendet",
+              "debouncing": "Wartet vor dem Beenden",
+              "no_position_support": "Keine Positionssteuerung",
+              "sun_unavailable": "Sonnenstand nicht verfügbar"
+            }
+          },
+          "blocked_by": {
+            "name": "Blockiert durch",
+            "state": {
+              "command_failed": "Befehl fehlgeschlagen",
+              "cover_switch": "Rollladen-Schalter aus",
+              "cover_unavailable": "Rollladen nicht verfügbar",
+              "debounce": "Wartet vor dem Beenden",
+              "manual_override": "Von Hand bewegt",
+              "master_switch": "Hauptschalter aus",
+              "no_position_support": "Keine Positionssteuerung",
+              "sun_unavailable": "Sonnenstand nicht verfügbar",
+              "window_open": "Fenster offen"
+            }
+          }
         }
       }
     },

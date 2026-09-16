@@ -125,6 +125,42 @@
           "neutral": "Neutral",
           "disabled": "Disabled",
           "unavailable": "Unavailable"
+        },
+        "state_attributes": {
+          "reason_code": {
+            "name": "Reason",
+            "state": {
+              "master_disabled": "Switched off globally",
+              "cover_disabled": "Switched off for this cover",
+              "cover_unavailable": "Cover unavailable",
+              "storm_wind": "Storm protection",
+              "window_is_open": "Window is open",
+              "manual_override": "Moved by hand",
+              "sun_not_on_window": "Sun not on the window",
+              "not_bright": "Not bright enough",
+              "temp_neutral": "Temperature neutral",
+              "shading": "Shading",
+              "solar_heating": "Solar heating",
+              "episode_ended": "Episode ended",
+              "debouncing": "Waiting before ending",
+              "no_position_support": "No position support",
+              "sun_unavailable": "Sun position unavailable"
+            }
+          },
+          "blocked_by": {
+            "name": "Blocked by",
+            "state": {
+              "command_failed": "Command failed",
+              "cover_switch": "Cover switch off",
+              "cover_unavailable": "Cover unavailable",
+              "debounce": "Waiting before ending",
+              "manual_override": "Moved by hand",
+              "master_switch": "Master switch off",
+              "no_position_support": "No position support",
+              "sun_unavailable": "Sun position unavailable",
+              "window_open": "Window open"
+            }
+          }
         }
       }
     },

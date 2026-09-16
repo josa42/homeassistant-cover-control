@@ -82,3 +82,32 @@ def test_selector_options_are_all_translated() -> None:
     selectors = load("strings.json")["selector"]
     assert {t.value for t in CoverType} == set(selectors["cover_type"]["options"])
     assert {a.value for a in StormAction} == set(selectors["storm_action"]["options"])
+
+
+def _decision_attribute_states(language_file: str, attribute: str) -> set[str]:
+    data = load(language_file)
+    return set(
+        data["entity"]["sensor"]["decision"]["state_attributes"][attribute]["state"]
+    )
+
+
+@pytest.mark.parametrize("language", ["strings.json", *(f"translations/{x}.json" for x in LANGUAGES)])
+def test_every_reason_code_is_translated(language: str) -> None:
+    """Untranslated codes show up raw in the dashboard, e.g. sun_not_on_window."""
+    from custom_components.cover_control.const import Reason
+
+    missing = {r.value for r in Reason} - _decision_attribute_states(language, "reason_code")
+    assert missing == set(), f"{language} is missing reason codes"
+
+
+@pytest.mark.parametrize("language", ["strings.json", *(f"translations/{x}.json" for x in LANGUAGES)])
+def test_every_blocked_by_value_is_translated(language: str) -> None:
+    """blocked_by has no enum, so scan the source for every value it is set to."""
+    import re
+
+    used = set()
+    for source in COMPONENT.glob("*.py"):
+        used |= set(re.findall(r'blocked_by="([a-z_]+)"', source.read_text()))
+    assert used, "found no blocked_by values; the scan is broken"
+    missing = used - _decision_attribute_states(language, "blocked_by")
+    assert missing == set(), f"{language} is missing blocked_by values"
