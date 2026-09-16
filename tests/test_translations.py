@@ -111,3 +111,65 @@ def test_every_blocked_by_value_is_translated(language: str) -> None:
     assert used, "found no blocked_by values; the scan is broken"
     missing = used - _decision_attribute_states(language, "blocked_by")
     assert missing == set(), f"{language} is missing blocked_by values"
+
+
+ALL_FILES = ["strings.json", *(f"translations/{x}.json" for x in LANGUAGES)]
+
+
+@pytest.mark.parametrize("language", ALL_FILES)
+def test_every_decision_attribute_has_a_name(language: str) -> None:
+    """Raw keys like would_move otherwise show up in the more-info dialog."""
+    from datetime import datetime
+
+    from custom_components.cover_control.const import Intent, Reason
+    from custom_components.cover_control.models import Decision
+
+    keys = set(
+        Decision(
+            timestamp=datetime(2026, 1, 1),
+            cover_entity="cover.x",
+            intent=Intent.NEUTRAL,
+            reason=Reason.TEMP_NEUTRAL,
+            message="",
+        ).as_attributes()
+    )
+    attrs = load(language)["entity"]["sensor"]["decision"]["state_attributes"]
+    unnamed = {key for key in keys if "name" not in attrs.get(key, {})}
+    assert unnamed == set(), f"{language}: attributes without a name"
+
+
+@pytest.mark.parametrize("language", ALL_FILES)
+def test_weather_conditions_are_translated_everywhere(language: str) -> None:
+    """Both the decision attribute and the setup selector show conditions."""
+    from custom_components.cover_control.config_flow import WEATHER_CONDITIONS
+
+    data = load(language)
+    attr = set(data["entity"]["sensor"]["decision"]["state_attributes"]["weather"]["state"])
+    selector = set(data["selector"]["weather_condition"]["options"])
+    assert set(WEATHER_CONDITIONS) - attr == set()
+    assert set(WEATHER_CONDITIONS) - selector == set()
+
+
+@pytest.mark.parametrize("language", ALL_FILES)
+def test_status_sensor_attributes_and_unit_are_translated(language: str) -> None:
+    from types import SimpleNamespace
+
+    from custom_components.cover_control.sensor import HubStatusSensor
+
+    coordinator = SimpleNamespace(
+        runtimes={},
+        master_enabled=True,
+        entry=SimpleNamespace(entry_id="e", title="Cover Control"),
+        async_add_listener=lambda *a, **k: None,
+    )
+    keys = set(HubStatusSensor(coordinator).extra_state_attributes)
+    status = load(language)["entity"]["sensor"]["status"]
+    assert "unit_of_measurement" in status
+    unnamed = {k for k in keys if "name" not in status.get("state_attributes", {}).get(k, {})}
+    assert unnamed == set(), f"{language}: status attributes without a name"
+
+
+def test_dashboard_templates_use_translated_states() -> None:
+    """states() in a card template renders the raw state, e.g. window_open."""
+    source = (COMPONENT / "www" / "cover-control-dashboard.js").read_text()
+    assert "{{ states(" not in source

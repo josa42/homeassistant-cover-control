@@ -250,7 +250,9 @@ function debugView(covers, t) {
         // now", so it goes first and in full rather than truncated in a row.
         type: "markdown",
         content: [
-          `**{{ states('${decision}') }}**`,
+          // state_translated, not states: templates return the raw state, so
+          // states() would print window_open instead of the translated intent.
+          `**{{ state_translated('${decision}') }}**`,
           "",
           // Rendered live, so a cover switched into dry run says so without
           // the dashboard having to be regenerated.

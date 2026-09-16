@@ -112,7 +112,28 @@
   "entity": {
     "sensor": {
       "status": {
-        "name": "Status"
+        "name": "Status",
+        "unit_of_measurement": "Rollläden",
+        "state_attributes": {
+          "total": {
+            "name": "Rollläden"
+          },
+          "shading": {
+            "name": "Beschattung"
+          },
+          "heating": {
+            "name": "Sonnenheizen"
+          },
+          "overridden": {
+            "name": "Manueller Eingriff"
+          },
+          "storm": {
+            "name": "Sturmschutz"
+          },
+          "enabled": {
+            "name": "Aktiviert"
+          }
+        }
       },
       "decision": {
         "name": "Entscheidung",
@@ -160,6 +181,68 @@
               "sun_unavailable": "Sonnenstand nicht verfügbar",
               "window_open": "Fenster offen"
             }
+          },
+          "message": {
+            "name": "Erklärung"
+          },
+          "cover_entity": {
+            "name": "Gesteuerter Rollladen"
+          },
+          "target_position": {
+            "name": "Zielposition"
+          },
+          "target_tilt": {
+            "name": "Ziel-Lamellenwinkel"
+          },
+          "would_move": {
+            "name": "Würde den Rollladen bewegen"
+          },
+          "acted": {
+            "name": "Rollladen bewegt"
+          },
+          "dry_run": {
+            "name": "Testlauf"
+          },
+          "episode_active": {
+            "name": "Episode läuft"
+          },
+          "sun_on_window": {
+            "name": "Sonne auf dem Fenster"
+          },
+          "penetration_depth": {
+            "name": "Sonneneinfall in den Raum"
+          },
+          "outdoor_temp": {
+            "name": "Außentemperatur"
+          },
+          "indoor_temp": {
+            "name": "Innentemperatur"
+          },
+          "pv_power": {
+            "name": "PV-Leistung"
+          },
+          "weather": {
+            "name": "Wetter",
+            "state": {
+              "clear-night": "Klare Nacht",
+              "cloudy": "Bewölkt",
+              "exceptional": "Außergewöhnlich",
+              "fog": "Nebel",
+              "hail": "Hagel",
+              "lightning": "Gewitter",
+              "lightning-rainy": "Gewitter, regnerisch",
+              "partlycloudy": "Teilweise bewölkt",
+              "pouring": "Strömender Regen",
+              "rainy": "Regnerisch",
+              "snowy": "Schneefall",
+              "snowy-rainy": "Schneeregen",
+              "sunny": "Sonnig",
+              "windy": "Windig",
+              "windy-variant": "Windig, bewölkt"
+            }
+          },
+          "wind_speed": {
+            "name": "Windgeschwindigkeit"
           }
         }
       }
@@ -199,6 +282,25 @@
         "retract_up": "Ganz hochfahren",
         "close_down": "Ganz herunterfahren",
         "ignore": "Nichts tun"
+      }
+    },
+    "weather_condition": {
+      "options": {
+        "clear-night": "Klare Nacht",
+        "cloudy": "Bewölkt",
+        "exceptional": "Außergewöhnlich",
+        "fog": "Nebel",
+        "hail": "Hagel",
+        "lightning": "Gewitter",
+        "lightning-rainy": "Gewitter, regnerisch",
+        "partlycloudy": "Teilweise bewölkt",
+        "pouring": "Strömender Regen",
+        "rainy": "Regnerisch",
+        "snowy": "Schneefall",
+        "snowy-rainy": "Schneeregen",
+        "sunny": "Sonnig",
+        "windy": "Windig",
+        "windy-variant": "Windig, bewölkt"
       }
     }
   }

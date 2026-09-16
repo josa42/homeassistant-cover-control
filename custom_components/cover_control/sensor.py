@@ -42,7 +42,7 @@ async def async_setup_entry(
 class HubStatusSensor(HubEntity, SensorEntity):
     """How many covers are currently being controlled."""
 
-    _attr_native_unit_of_measurement = "covers"
+    # The unit is translated, which Home Assistant only allows without a native one.
 
     def __init__(self, coordinator: CoverControlCoordinator) -> None:
         super().__init__(coordinator, "status")

@@ -112,7 +112,28 @@
   "entity": {
     "sensor": {
       "status": {
-        "name": "Status"
+        "name": "Status",
+        "unit_of_measurement": "covers",
+        "state_attributes": {
+          "total": {
+            "name": "Covers"
+          },
+          "shading": {
+            "name": "Shading"
+          },
+          "heating": {
+            "name": "Solar heating"
+          },
+          "overridden": {
+            "name": "Manually overridden"
+          },
+          "storm": {
+            "name": "Storm protection"
+          },
+          "enabled": {
+            "name": "Enabled"
+          }
+        }
       },
       "decision": {
         "name": "Decision",
@@ -160,6 +181,68 @@
               "sun_unavailable": "Sun position unavailable",
               "window_open": "Window open"
             }
+          },
+          "message": {
+            "name": "Explanation"
+          },
+          "cover_entity": {
+            "name": "Controlled cover"
+          },
+          "target_position": {
+            "name": "Target position"
+          },
+          "target_tilt": {
+            "name": "Target tilt"
+          },
+          "would_move": {
+            "name": "Would move the cover"
+          },
+          "acted": {
+            "name": "Moved the cover"
+          },
+          "dry_run": {
+            "name": "Dry run"
+          },
+          "episode_active": {
+            "name": "Episode running"
+          },
+          "sun_on_window": {
+            "name": "Sun on the window"
+          },
+          "penetration_depth": {
+            "name": "Sun reaches into the room"
+          },
+          "outdoor_temp": {
+            "name": "Outdoor temperature"
+          },
+          "indoor_temp": {
+            "name": "Indoor temperature"
+          },
+          "pv_power": {
+            "name": "PV power"
+          },
+          "weather": {
+            "name": "Weather",
+            "state": {
+              "clear-night": "Clear, night",
+              "cloudy": "Cloudy",
+              "exceptional": "Exceptional",
+              "fog": "Fog",
+              "hail": "Hail",
+              "lightning": "Lightning",
+              "lightning-rainy": "Lightning, rainy",
+              "partlycloudy": "Partly cloudy",
+              "pouring": "Pouring",
+              "rainy": "Rainy",
+              "snowy": "Snowy",
+              "snowy-rainy": "Snowy, rainy",
+              "sunny": "Sunny",
+              "windy": "Windy",
+              "windy-variant": "Windy, cloudy"
+            }
+          },
+          "wind_speed": {
+            "name": "Wind speed"
           }
         }
       }
@@ -199,6 +282,25 @@
         "retract_up": "Retract fully up",
         "close_down": "Close fully down",
         "ignore": "Do nothing"
+      }
+    },
+    "weather_condition": {
+      "options": {
+        "clear-night": "Clear, night",
+        "cloudy": "Cloudy",
+        "exceptional": "Exceptional",
+        "fog": "Fog",
+        "hail": "Hail",
+        "lightning": "Lightning",
+        "lightning-rainy": "Lightning, rainy",
+        "partlycloudy": "Partly cloudy",
+        "pouring": "Pouring",
+        "rainy": "Rainy",
+        "snowy": "Snowy",
+        "snowy-rainy": "Snowy, rainy",
+        "sunny": "Sunny",
+        "windy": "Windy",
+        "windy-variant": "Windy, cloudy"
       }
     }
   }

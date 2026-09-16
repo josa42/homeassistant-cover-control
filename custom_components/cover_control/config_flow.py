@@ -140,6 +140,7 @@ def _hub_schema(
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=WEATHER_CONDITIONS,
+                    translation_key="weather_condition",
                     multiple=True,
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
