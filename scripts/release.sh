@@ -74,6 +74,7 @@ else
 fi
 
 MANIFEST_FILE="custom_components/cover_control/manifest.json"
+INIT_FILE="custom_components/cover_control/__init__.py"
 if [ ! -f "$MANIFEST_FILE" ]; then
     print_error "Manifest file not found: $MANIFEST_FILE"
     exit 1
@@ -84,7 +85,7 @@ restore_version_files() {
     local code=$?
     [ "$code" -eq 0 ] && return
     print_warn "Release failed, restoring version files..."
-    git checkout -- "$MANIFEST_FILE" 2>/dev/null || true
+    git checkout -- "$MANIFEST_FILE" "$INIT_FILE" 2>/dev/null || true
 }
 trap restore_version_files EXIT
 
@@ -102,8 +103,17 @@ if [ "$NEW_VERSION" != "$VERSION" ]; then
 fi
 print_info "manifest.json → ${VERSION}"
 
+# The dashboard strategy is served with ?v=<version>; bump it too or browsers
+# keep running the copy they cached before the upgrade.
+print_info "Updating STRATEGY_VERSION in ${INIT_FILE}..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^STRATEGY_VERSION = \"[^\"]*\"/STRATEGY_VERSION = \"${VERSION}\"/" "$INIT_FILE"
+else
+    sed -i "s/^STRATEGY_VERSION = \"[^\"]*\"/STRATEGY_VERSION = \"${VERSION}\"/" "$INIT_FILE"
+fi
+
 print_info "Committing version bump..."
-git add "$MANIFEST_FILE"
+git add "$MANIFEST_FILE" "$INIT_FILE"
 git commit -m "chore: bump version to ${VERSION}"
 
 print_info "Creating tag ${TAG}..."
