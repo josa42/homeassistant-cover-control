@@ -1,0 +1,158 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Cover Control",
+        "description": "Shared sensors and thresholds. Every cover inherits these and can override any of them.",
+        "data": {
+          "outdoor_temp_entity": "Outdoor temperature",
+          "weather_entity": "Weather",
+          "pv_power_entity": "PV power (optional)",
+          "wind_source_entity": "Wind source (optional)",
+          "cool_above": "Shade above",
+          "heat_below": "Solar heating below",
+          "indoor_cool_above": "Indoor temperature confirms shading above",
+          "indoor_heat_below": "Indoor temperature confirms heating below",
+          "pv_threshold": "PV power counts as bright above",
+          "allowed_weather_states": "Weather conditions that allow acting",
+          "wind_threshold": "Storm protection triggers above",
+          "wind_release": "Storm protection releases below"
+        },
+        "data_description": {
+          "wind_source_entity": "Leave empty to read wind speed from the weather entity.",
+          "pv_threshold": "Only used when a PV power sensor is configured.",
+          "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Cover Control is already set up. Add your covers to the existing entry."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cover Control defaults",
+        "description": "Shared sensors and thresholds. Every cover inherits these and can override any of them.",
+        "data": {
+          "outdoor_temp_entity": "Outdoor temperature",
+          "weather_entity": "Weather",
+          "pv_power_entity": "PV power (optional)",
+          "wind_source_entity": "Wind source (optional)",
+          "cool_above": "Shade above",
+          "heat_below": "Solar heating below",
+          "indoor_cool_above": "Indoor temperature confirms shading above",
+          "indoor_heat_below": "Indoor temperature confirms heating below",
+          "pv_threshold": "PV power counts as bright above",
+          "allowed_weather_states": "Weather conditions that allow acting",
+          "wind_threshold": "Storm protection triggers above",
+          "wind_release": "Storm protection releases below"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "cover": {
+      "title": "Controlled cover",
+      "entry_type": "Controlled cover",
+      "initiate_flow": {
+        "user": "Add a cover",
+        "reconfigure": "Reconfigure cover"
+      },
+      "step": {
+        "user": {
+          "title": "Pick a cover",
+          "description": "Covers that are already controlled are hidden.",
+          "data": {
+            "cover_entity": "Cover"
+          }
+        },
+        "configure": {
+          "title": "Configure {cover}",
+          "description": "Orientation and size drive the shading geometry. The cover type is pre-selected from what the cover reports it can do.",
+          "data": {
+            "name": "Name",
+            "cover_type": "Cover type",
+            "azimuth": "Orientation",
+            "window_height": "Window height",
+            "sill_height": "Sill height above the floor",
+            "max_penetration_depth": "Allowed sun depth into the room",
+            "fov_left": "Field of view to the left",
+            "fov_right": "Field of view to the right",
+            "storm_action": "On storm",
+            "indoor_temp_entity": "Indoor temperature (optional)",
+            "window_sensor_entity": "Window contact (optional)",
+            "shade_with_window_open": "Keep shading while the window is open",
+            "seating_point": "Seating point override (optional)",
+            "shaded_tilt": "Slat angle while shading"
+          },
+          "data_description": {
+            "azimuth": "Compass direction the window faces. 0 is north, 90 east, 180 south, 270 west.",
+            "max_penetration_depth": "0 m means no direct sun in the room at all, which closes the cover fully whenever the sun is on the window.",
+            "fov_left": "Reduce below 90 degrees only if something real blocks the sun, such as a reveal, balcony or neighbouring building. Left is the morning side for a south-facing window.",
+            "shade_with_window_open": "Off leaves the cover alone while the window is open. Turn this on only for windows that are tilted rather than opened wide, since a contact cannot tell the two apart.",
+            "seating_point": "Position at which the cover has fully covered the glass. Leave empty to use the cover type default. To measure it, lower the cover slowly until the light gap at the bottom disappears.",
+            "indoor_temp_entity": "A sensor, or a climate entity whose current temperature is used."
+          }
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status"
+      },
+      "decision": {
+        "name": "Decision",
+        "state": {
+          "storm": "Storm protection",
+          "window_open": "Window open",
+          "override": "Manual override",
+          "cooling": "Shading",
+          "heating": "Solar heating",
+          "neutral": "Neutral",
+          "disabled": "Disabled",
+          "unavailable": "Unavailable"
+        }
+      }
+    },
+    "binary_sensor": {
+      "storm_active": {
+        "name": "Storm protection"
+      },
+      "override_active": {
+        "name": "Manual override"
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "Enabled"
+      }
+    },
+    "button": {
+      "resume_all": {
+        "name": "Resume all"
+      },
+      "resume": {
+        "name": "Resume"
+      }
+    }
+  },
+  "selector": {
+    "cover_type": {
+      "options": {
+        "raffstore": "External venetian blind (Raffstore), tilt available",
+        "rolladen": "Roller shutter (Rolladen), last part of travel closes the light gaps",
+        "other": "Other, position maps directly to glass area"
+      }
+    },
+    "storm_action": {
+      "options": {
+        "retract_up": "Retract fully up",
+        "close_down": "Close fully down",
+        "ignore": "Do nothing"
+      }
+    }
+  }
+}

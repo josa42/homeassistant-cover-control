@@ -1,0 +1,158 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Cover Control",
+        "description": "Gemeinsame Sensoren und Grenzwerte. Jeder Rollladen erbt diese Werte und kann jeden davon überschreiben.",
+        "data": {
+          "outdoor_temp_entity": "Außentemperatur",
+          "weather_entity": "Wetter",
+          "pv_power_entity": "PV-Leistung (optional)",
+          "wind_source_entity": "Windquelle (optional)",
+          "cool_above": "Beschatten über",
+          "heat_below": "Sonnenheizen unter",
+          "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
+          "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
+          "pv_threshold": "PV-Leistung gilt als hell ab",
+          "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
+          "wind_threshold": "Sturmschutz löst aus über",
+          "wind_release": "Sturmschutz gibt frei unter"
+        },
+        "data_description": {
+          "wind_source_entity": "Leer lassen, um die Windgeschwindigkeit aus der Wetter-Entität zu lesen.",
+          "pv_threshold": "Wird nur verwendet, wenn ein PV-Leistungssensor eingetragen ist.",
+          "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Cover Control ist bereits eingerichtet. Füge deine Rollläden zum vorhandenen Eintrag hinzu."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Cover Control Voreinstellungen",
+        "description": "Gemeinsame Sensoren und Grenzwerte. Jeder Rollladen erbt diese Werte und kann jeden davon überschreiben.",
+        "data": {
+          "outdoor_temp_entity": "Außentemperatur",
+          "weather_entity": "Wetter",
+          "pv_power_entity": "PV-Leistung (optional)",
+          "wind_source_entity": "Windquelle (optional)",
+          "cool_above": "Beschatten über",
+          "heat_below": "Sonnenheizen unter",
+          "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
+          "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
+          "pv_threshold": "PV-Leistung gilt als hell ab",
+          "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
+          "wind_threshold": "Sturmschutz löst aus über",
+          "wind_release": "Sturmschutz gibt frei unter"
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "cover": {
+      "title": "Gesteuerter Rollladen",
+      "entry_type": "Gesteuerter Rollladen",
+      "initiate_flow": {
+        "user": "Rollladen hinzufügen",
+        "reconfigure": "Rollladen neu konfigurieren"
+      },
+      "step": {
+        "user": {
+          "title": "Rollladen auswählen",
+          "description": "Bereits gesteuerte Rollläden werden ausgeblendet.",
+          "data": {
+            "cover_entity": "Rollladen"
+          }
+        },
+        "configure": {
+          "title": "{cover} einrichten",
+          "description": "Ausrichtung und Größe bestimmen die Beschattungsgeometrie. Der Typ ist anhand der gemeldeten Fähigkeiten vorausgewählt.",
+          "data": {
+            "name": "Name",
+            "cover_type": "Typ",
+            "azimuth": "Ausrichtung",
+            "window_height": "Fensterhöhe",
+            "sill_height": "Brüstungshöhe über dem Boden",
+            "max_penetration_depth": "Erlaubte Sonneneinfall-Tiefe in den Raum",
+            "fov_left": "Sichtfeld nach links",
+            "fov_right": "Sichtfeld nach rechts",
+            "storm_action": "Bei Sturm",
+            "indoor_temp_entity": "Innentemperatur (optional)",
+            "window_sensor_entity": "Fensterkontakt (optional)",
+            "shade_with_window_open": "Bei offenem Fenster weiter beschatten",
+            "seating_point": "Aufsetzpunkt überschreiben (optional)",
+            "shaded_tilt": "Lamellenwinkel während der Beschattung"
+          },
+          "data_description": {
+            "azimuth": "Himmelsrichtung, in die das Fenster zeigt. 0 ist Norden, 90 Osten, 180 Süden, 270 Westen.",
+            "max_penetration_depth": "0 m bedeutet gar keine direkte Sonne im Raum und schließt den Rollladen vollständig, sobald die Sonne auf das Fenster trifft.",
+            "fov_left": "Nur unter 90 Grad verkleinern, wenn real etwas im Weg steht, etwa eine Laibung, ein Balkon oder ein Nachbarhaus. Links ist beim Südfenster die Vormittagsseite.",
+            "shade_with_window_open": "Aus lässt den Rollladen bei offenem Fenster in Ruhe. Nur für Fenster einschalten, die gekippt statt weit geöffnet werden, denn ein Kontakt kann beides nicht unterscheiden.",
+            "seating_point": "Position, ab der das Glas vollständig verdeckt ist. Leer lassen, um den Standardwert des Typs zu verwenden. Zum Ermitteln den Rollladen langsam herunterfahren, bis der Lichtspalt unten verschwindet.",
+            "indoor_temp_entity": "Ein Sensor, oder eine Klima-Entität, deren aktuelle Temperatur verwendet wird."
+          }
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status"
+      },
+      "decision": {
+        "name": "Entscheidung",
+        "state": {
+          "storm": "Sturmschutz",
+          "window_open": "Fenster offen",
+          "override": "Manueller Eingriff",
+          "cooling": "Beschattung",
+          "heating": "Sonnenheizen",
+          "neutral": "Neutral",
+          "disabled": "Deaktiviert",
+          "unavailable": "Nicht verfügbar"
+        }
+      }
+    },
+    "binary_sensor": {
+      "storm_active": {
+        "name": "Sturmschutz"
+      },
+      "override_active": {
+        "name": "Manueller Eingriff"
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "Aktiviert"
+      }
+    },
+    "button": {
+      "resume_all": {
+        "name": "Alle fortsetzen"
+      },
+      "resume": {
+        "name": "Fortsetzen"
+      }
+    }
+  },
+  "selector": {
+    "cover_type": {
+      "options": {
+        "raffstore": "Raffstore, mit Lamellenverstellung",
+        "rolladen": "Rollladen, letzter Teil des Laufwegs schließt die Lichtspalte",
+        "other": "Sonstiges, Position entspricht direkt der Glasfläche"
+      }
+    },
+    "storm_action": {
+      "options": {
+        "retract_up": "Ganz hochfahren",
+        "close_down": "Ganz herunterfahren",
+        "ignore": "Nichts tun"
+      }
+    }
+  }
+}

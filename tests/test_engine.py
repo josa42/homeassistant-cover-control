@@ -1,0 +1,379 @@
+"""Tests for the decision engine: the priority chain and the gates."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+import pytest
+
+from custom_components.cover_control.const import (
+    CONF_AZIMUTH,
+    CONF_COOL_ABOVE,
+    CONF_COVER_TYPE,
+    CONF_MAX_DEPTH,
+    CONF_PV_THRESHOLD,
+    CONF_SEATING_POINT,
+    CONF_SHADE_WINDOW_OPEN,
+    CONF_SHADED_TILT,
+    CONF_SILL_HEIGHT,
+    CONF_STORM_ACTION,
+    CONF_WEATHER_STATES,
+    CONF_WIND_RELEASE,
+    CONF_WIND_THRESHOLD,
+    CONF_WINDOW_HEIGHT,
+    CoverType,
+    Intent,
+    Reason,
+    StormAction,
+)
+from custom_components.cover_control.engine import EpisodeState, Inputs, evaluate
+from custom_components.cover_control.models import EffectiveConfig
+
+NOW = datetime(2026, 7, 1, 13, 0)
+
+HUB = {
+    CONF_COOL_ABOVE: 25.0,
+    CONF_WIND_THRESHOLD: 40.0,
+    CONF_WIND_RELEASE: 30.0,
+    CONF_PV_THRESHOLD: 800.0,
+    CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
+}
+
+COVER = {
+    CONF_COVER_TYPE: CoverType.RAFFSTORE,
+    CONF_AZIMUTH: 180.0,
+    CONF_WINDOW_HEIGHT: 2.0,
+    CONF_SILL_HEIGHT: 0.0,
+    CONF_MAX_DEPTH: 1.0,
+    CONF_SHADED_TILT: 45,
+    CONF_STORM_ACTION: StormAction.RETRACT_UP,
+}
+
+SUNNY_AND_HOT = {
+    "now": NOW,
+    "cover_available": True,
+    "supports_position": True,
+    "supports_tilt": True,
+    "current_position": 100,
+    "current_tilt": 100,
+    "sun_elevation": 45.0,
+    "sun_azimuth": 180.0,
+    "outdoor_temp": 28.0,
+    "pv_power": 1500.0,
+    "weather": "sunny",
+    "wind_speed": 10.0,
+    "window_open": False,
+}
+
+
+def run(
+    state: EpisodeState | None = None,
+    cover: dict | None = None,
+    hub: dict | None = None,
+    master: bool = True,
+    enabled: bool = True,
+    **overrides,
+):
+    """Evaluate one cover with the sunny-and-hot baseline."""
+    config = EffectiveConfig({**HUB, **(hub or {})}, {**COVER, **(cover or {})})
+    inputs = Inputs(**{**SUNNY_AND_HOT, **overrides})
+    return evaluate(
+        inputs, config, state or EpisodeState(), "cover.test", master, enabled
+    )
+
+
+# --- the happy path ---------------------------------------------------------
+
+
+def test_hot_sunny_noon_shades() -> None:
+    decision, state = run()
+    assert decision.intent is Intent.COOLING
+    assert decision.reason is Reason.SHADING
+    assert decision.target_position == 50  # 1 m allowed on a 2 m window at 45 deg
+    assert decision.target_tilt == 45
+    assert state.active
+
+
+def test_shading_explains_itself_with_numbers() -> None:
+    decision, _ = run()
+    assert "2.00 m" in decision.message  # unshaded penetration
+    assert "1.00 m" in decision.message  # what is allowed
+    assert decision.geometry["required_glass_fraction"] == pytest.approx(0.5)
+    assert decision.geometry["profile_angle"] == pytest.approx(45.0)
+
+
+def test_cold_and_sunny_heats() -> None:
+    decision, state = run(outdoor_temp=5.0)
+    assert decision.intent is Intent.HEATING
+    assert decision.reason is Reason.SOLAR_HEATING
+    assert decision.target_position == 100
+    assert state.active
+
+
+def test_tilt_only_commanded_when_supported() -> None:
+    decision, _ = run(supports_tilt=False)
+    assert decision.target_position == 50
+    assert decision.target_tilt is None
+
+
+def test_rolladen_shades_within_its_glass_travel() -> None:
+    """A Rolladen's last 25% closes light gaps, so shading stops at the seat."""
+    decision, _ = run(
+        cover={CONF_COVER_TYPE: CoverType.ROLLADEN, CONF_MAX_DEPTH: 0.0},
+        supports_tilt=False,
+    )
+    assert decision.target_position == 25
+
+
+def test_seating_point_override_wins_over_the_type_default() -> None:
+    decision, _ = run(
+        cover={
+            CONF_COVER_TYPE: CoverType.ROLLADEN,
+            CONF_SEATING_POINT: 40,
+            CONF_MAX_DEPTH: 0.0,
+        },
+        supports_tilt=False,
+    )
+    assert decision.target_position == 40
+
+
+# --- priority chain ---------------------------------------------------------
+
+
+def test_storm_beats_shading() -> None:
+    decision, state = run(wind_speed=55.0)
+    assert decision.intent is Intent.STORM
+    assert decision.target_position == 100
+    assert not state.active
+
+
+def test_storm_beats_manual_override() -> None:
+    held = EpisodeState(active=True, intent=Intent.COOLING, override=True)
+    decision, state = run(held, wind_speed=55.0)
+    assert decision.intent is Intent.STORM
+    assert not state.override
+
+
+def test_storm_action_close_down() -> None:
+    decision, _ = run(
+        cover={CONF_STORM_ACTION: StormAction.CLOSE_DOWN}, wind_speed=55.0
+    )
+    assert decision.target_position == 0
+
+
+def test_storm_action_ignore_falls_through_to_shading() -> None:
+    decision, _ = run(cover={CONF_STORM_ACTION: StormAction.IGNORE}, wind_speed=55.0)
+    assert decision.intent is Intent.COOLING
+
+
+def test_storm_latches_until_wind_drops_below_release() -> None:
+    """Between release and trigger the latch holds, so gusts do not oscillate covers."""
+    _, latched = run(wind_speed=45.0)
+    assert latched.storm_latched
+
+    decision, still = run(latched, wind_speed=35.0)
+    assert still.storm_latched
+    assert decision.intent is Intent.STORM
+
+    decision, cleared = run(still, wind_speed=25.0)
+    assert not cleared.storm_latched
+    assert decision.intent is Intent.COOLING
+
+
+def test_open_window_blocks_movement() -> None:
+    decision, _ = run(window_open=True)
+    assert decision.intent is Intent.WINDOW_OPEN
+    assert decision.target_position is None
+    assert decision.blocked_by == "window_open"
+
+
+def test_open_window_can_be_opted_out_per_cover() -> None:
+    decision, _ = run(cover={CONF_SHADE_WINDOW_OPEN: True}, window_open=True)
+    assert decision.intent is Intent.COOLING
+    assert decision.target_position == 50
+
+
+def test_master_switch_off_stops_everything() -> None:
+    decision, _ = run(master=False)
+    assert decision.intent is Intent.DISABLED
+    assert decision.reason is Reason.MASTER_DISABLED
+
+
+def test_cover_switch_off_stops_that_cover() -> None:
+    decision, _ = run(enabled=False)
+    assert decision.reason is Reason.COVER_DISABLED
+
+
+def test_unavailable_cover_is_not_evaluated() -> None:
+    decision, _ = run(cover_available=False)
+    assert decision.intent is Intent.UNAVAILABLE
+
+
+def test_missing_sun_position_is_reported_explicitly() -> None:
+    """A missing sun.sun must be legible, not a silent no-op."""
+    decision, _ = run(sun_elevation=None)
+    assert decision.intent is Intent.UNAVAILABLE
+    assert decision.reason is Reason.SUN_UNAVAILABLE
+    assert decision.blocked_by == "sun_unavailable"
+
+
+def test_cover_without_position_support_cannot_shade() -> None:
+    decision, _ = run(supports_position=False)
+    assert decision.reason is Reason.NO_POSITION_SUPPORT
+    assert decision.target_position is None
+
+
+# --- manual override --------------------------------------------------------
+
+
+def test_override_blocks_movement_while_the_episode_runs() -> None:
+    held = EpisodeState(active=True, intent=Intent.COOLING, override=True)
+    decision, state = run(held)
+    assert decision.intent is Intent.OVERRIDE
+    assert decision.target_position is None
+    assert state.override
+
+
+def test_episode_end_releases_the_override_and_opens() -> None:
+    stale = EpisodeState(
+        active=True,
+        intent=Intent.COOLING,
+        override=True,
+        gate_false_since=NOW - timedelta(minutes=11),
+    )
+    decision, state = run(stale, sun_azimuth=20.0)
+    assert decision.reason is Reason.EPISODE_ENDED
+    assert decision.target_position == 100
+    assert not state.override
+    assert not state.active
+
+
+# --- debounce ---------------------------------------------------------------
+
+
+def test_gates_dropping_does_not_end_the_episode_immediately() -> None:
+    """A curtailing inverter or a passing cloud must not fling the covers open."""
+    running = EpisodeState(active=True, intent=Intent.COOLING)
+    decision, state = run(running, pv_power=0.0)
+    assert decision.reason is Reason.DEBOUNCING
+    assert decision.target_position is None
+    assert state.active
+    assert state.gate_false_since == NOW
+
+
+def test_episode_ends_once_the_gates_stay_false() -> None:
+    running = EpisodeState(
+        active=True, intent=Intent.COOLING, gate_false_since=NOW - timedelta(minutes=11)
+    )
+    decision, state = run(running, pv_power=0.0)
+    assert decision.reason is Reason.EPISODE_ENDED
+    assert not state.active
+
+
+def test_gates_recovering_cancels_the_debounce() -> None:
+    wobbling = EpisodeState(
+        active=True, intent=Intent.COOLING, gate_false_since=NOW - timedelta(minutes=5)
+    )
+    decision, state = run(wobbling)
+    assert decision.intent is Intent.COOLING
+    assert state.gate_false_since is None
+
+
+# --- gates ------------------------------------------------------------------
+
+
+def test_sun_off_the_window_does_nothing() -> None:
+    decision, state = run(sun_azimuth=20.0)
+    assert decision.reason is Reason.SUN_NOT_ON_WINDOW
+    assert not state.active
+
+
+def test_low_pv_is_not_bright_enough() -> None:
+    decision, _ = run(pv_power=100.0)
+    assert decision.reason is Reason.NOT_BRIGHT
+
+
+def test_disallowed_weather_is_not_bright_enough() -> None:
+    decision, _ = run(weather="rainy")
+    assert decision.reason is Reason.NOT_BRIGHT
+
+
+def test_pv_is_optional() -> None:
+    decision, _ = run(pv_power=None)
+    assert decision.intent is Intent.COOLING
+
+
+def test_mild_weather_is_neutral() -> None:
+    decision, _ = run(outdoor_temp=18.0)
+    assert decision.reason is Reason.TEMP_NEUTRAL
+
+
+def test_forecast_high_shades_before_it_is_hot_outside() -> None:
+    """Shading is preventive: once the room is hot the gain already happened."""
+    decision, _ = run(outdoor_temp=21.0, forecast_max=31.0)
+    assert decision.intent is Intent.COOLING
+
+
+def test_indoor_temperature_can_veto_shading() -> None:
+    decision, _ = run(indoor_temp=19.0)
+    assert decision.reason is Reason.TEMP_NEUTRAL
+
+
+def test_indoor_temperature_can_confirm_shading() -> None:
+    decision, _ = run(indoor_temp=26.0)
+    assert decision.intent is Intent.COOLING
+
+
+def test_indoor_temperature_can_veto_heating() -> None:
+    decision, _ = run(outdoor_temp=5.0, indoor_temp=23.0)
+    assert decision.reason is Reason.TEMP_NEUTRAL
+
+
+# --- the decision record ----------------------------------------------------
+
+
+def test_cover_override_beats_hub_default_and_says_so() -> None:
+    decision, _ = run(cover={CONF_COOL_ABOVE: 30.0}, outdoor_temp=28.0)
+    assert decision.reason is Reason.TEMP_NEUTRAL
+    assert decision.settings[CONF_COOL_ABOVE] == {"value": 30.0, "source": "cover"}
+
+
+def test_hub_value_is_reported_as_inherited() -> None:
+    decision, _ = run()
+    assert decision.settings[CONF_COOL_ABOVE] == {"value": 25.0, "source": "hub"}
+
+
+def test_unset_value_falls_back_to_the_documented_default() -> None:
+    decision, _ = run(hub={CONF_PV_THRESHOLD: None})
+    assert decision.settings[CONF_PV_THRESHOLD]["source"] == "default"
+
+
+def test_every_decision_records_the_gates_it_applied() -> None:
+    decision, _ = run()
+    names = [gate.name for gate in decision.gates]
+    assert names == [
+        "cover_available",
+        "master_enabled",
+        "cover_enabled",
+        "storm",
+        "window_closed",
+        "sun_available",
+        "sun_on_window",
+        "bright",
+        "temperature",
+    ]
+    assert all(gate.detail or gate.passed for gate in decision.gates)
+
+
+def test_compact_attributes_stay_flat_for_the_recorder() -> None:
+    decision, _ = run()
+    attributes = decision.as_attributes()
+    assert not any(isinstance(value, (dict, list)) for value in attributes.values())
+    assert attributes["reason_code"] == "shading"
+
+
+def test_full_record_is_serialisable() -> None:
+    import json
+
+    decision, _ = run()
+    assert json.loads(json.dumps(decision.as_dict()))["reason_code"] == "shading"
