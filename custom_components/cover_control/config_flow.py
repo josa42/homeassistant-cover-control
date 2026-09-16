@@ -26,6 +26,7 @@ from .const import (
     CONF_COOL_ABOVE,
     CONF_COVER_ENTITY,
     CONF_COVER_TYPE,
+    CONF_DRY_RUN,
     CONF_FOV_LEFT,
     CONF_FOV_RIGHT,
     CONF_HEAT_BELOW,
@@ -33,6 +34,7 @@ from .const import (
     CONF_INDOOR_HEAT_BELOW,
     CONF_INDOOR_TEMP,
     CONF_MAX_DEPTH,
+    CONF_NOTIFY_TARGET,
     CONF_OUTDOOR_TEMP,
     CONF_PV_POWER,
     CONF_PV_THRESHOLD,
@@ -86,7 +88,15 @@ def _number(minimum: float, maximum: float, step: float, unit: str | None = None
     )
 
 
-def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _notify_services(hass) -> list[str]:
+    """Every notify service currently registered, as domain.service strings."""
+    services = hass.services.async_services().get("notify", {})
+    return [f"notify.{name}" for name in services]
+
+
+def _hub_schema(
+    defaults: dict[str, Any], notify_services: list[str] | None = None
+) -> vol.Schema:
     def default(key: str):
         return defaults.get(key, DEFAULTS.get(key))
 
@@ -140,6 +150,19 @@ def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_WIND_RELEASE, default=default(CONF_WIND_RELEASE)
             ): _number(0, 200, 1, "km/h"),
+            vol.Optional(
+                CONF_NOTIFY_TARGET,
+                description={"suggested_value": default(CONF_NOTIFY_TARGET)},
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=sorted(notify_services or []),
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
+            vol.Required(
+                CONF_DRY_RUN, default=bool(default(CONF_DRY_RUN))
+            ): selector.BooleanSelector(),
         }
     )
 
@@ -157,7 +180,10 @@ class CoverControlConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
         if user_input is not None:
             return self.async_create_entry(title="Cover Control", data=user_input)
-        return self.async_show_form(step_id="user", data_schema=_hub_schema({}))
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_hub_schema({}, _notify_services(self.hass)),
+        )
 
     @classmethod
     @callback
@@ -334,6 +360,9 @@ class CoverSubentryFlow(ConfigSubentryFlow):
             vol.Optional(
                 CONF_SEATING_POINT, description=suggest(CONF_SEATING_POINT)
             ): _number(0, 90, 1, "%"),
+            vol.Required(
+                CONF_DRY_RUN, default=bool(existing.get(CONF_DRY_RUN, False))
+            ): selector.BooleanSelector(),
         }
         if supports_tilt:
             fields[

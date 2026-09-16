@@ -83,7 +83,12 @@ class Decision:
     message: str
     target_position: int | None = None
     target_tilt: int | None = None
+    #: A command was warranted, whether or not one was actually sent. In dry
+    #: run this stays true while ``acted`` is false, which is what lets the
+    #: dashboard show what would have happened.
+    would_move: bool = False
     acted: bool = False
+    dry_run: bool = False
     blocked_by: str | None = None
     episode_active: bool = False
     inputs: dict[str, Any] = field(default_factory=dict)
@@ -103,7 +108,9 @@ class Decision:
             "cover_entity": self.cover_entity,
             "target_position": self.target_position,
             "target_tilt": self.target_tilt,
+            "would_move": self.would_move,
             "acted": self.acted,
+            "dry_run": self.dry_run,
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
             "sun_on_window": self.geometry.get("sun_on_window"),
@@ -125,7 +132,9 @@ class Decision:
             "message": self.message,
             "target_position": self.target_position,
             "target_tilt": self.target_tilt,
+            "would_move": self.would_move,
             "acted": self.acted,
+            "dry_run": self.dry_run,
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
             "inputs": self.inputs,
@@ -133,3 +142,19 @@ class Decision:
             "geometry": self.geometry,
             "settings": self.settings,
         }
+
+    @property
+    def notify_signature(self) -> tuple:
+        """What counts as a change worth notifying about.
+
+        The target drifts by a percent or two on every tick as the sun moves,
+        so it only enters the signature when a move is actually warranted.
+        Otherwise a notification would fire on every single evaluation.
+        """
+        return (
+            str(self.intent),
+            str(self.reason),
+            self.target_position if self.would_move else None,
+            self.target_tilt if self.would_move else None,
+            self.dry_run,
+        )

@@ -109,6 +109,8 @@ CONF_PV_THRESHOLD = "pv_threshold"
 CONF_WEATHER_STATES = "allowed_weather_states"
 CONF_WIND_THRESHOLD = "wind_threshold"
 CONF_WIND_RELEASE = "wind_release"
+CONF_NOTIFY_TARGET = "notify_target"
+CONF_DRY_RUN = "dry_run"
 
 # --- Cover configuration keys ----------------------------------------------
 
@@ -127,6 +129,8 @@ CONF_WINDOW_SENSOR = "window_sensor_entity"
 CONF_SHADE_WINDOW_OPEN = "shade_with_window_open"
 CONF_STORM_ACTION = "storm_action"
 
+#: Dry run is deliberately NOT here: hub and cover values are OR-ed, so a
+#: master safe-mode cannot be cancelled by a per-cover checkbox.
 #: Hub settings a cover may override. Anything listed here is resolved through
 #: :meth:`EffectiveConfig.resolve`, which also records where the value came from.
 OVERRIDABLE = (
@@ -153,6 +157,7 @@ DEFAULTS: dict[str, object] = {
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
     CONF_WIND_THRESHOLD: 40.0,
     CONF_WIND_RELEASE: 30.0,
+    CONF_DRY_RUN: False,
 }
 
 COVER_DEFAULTS: dict[str, object] = {

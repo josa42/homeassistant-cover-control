@@ -28,6 +28,13 @@ def test_asset_registers_both_strategy_kinds() -> None:
     assert 'customElements.define(\n  "ll-strategy-view-cover-control"' in source
 
 
+def test_asset_surfaces_dry_run() -> None:
+    """A dashboard that cannot tell dry run from real is actively misleading."""
+    source = ASSET.read_text(encoding="utf-8")
+    assert "dry_run" in source
+    assert "would_move" in source
+
+
 def test_asset_reads_the_cover_from_the_decision_sensor() -> None:
     """The controlled cover is not one of our entities; it comes from the record."""
     source = ASSET.read_text(encoding="utf-8")

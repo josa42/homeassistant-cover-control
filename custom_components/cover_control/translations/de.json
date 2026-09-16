@@ -16,12 +16,16 @@
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
           "wind_threshold": "Sturmschutz löst aus über",
-          "wind_release": "Sturmschutz gibt frei unter"
+          "wind_release": "Sturmschutz gibt frei unter",
+          "notify_target": "Benachrichtigungsziel",
+          "dry_run": "Testlauf für alle Rollläden"
         },
         "data_description": {
           "wind_source_entity": "Leer lassen, um die Windgeschwindigkeit aus der Wetter-Entität zu lesen.",
           "pv_threshold": "Wird nur verwendet, wenn ein PV-Leistungssensor eingetragen ist.",
-          "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen."
+          "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen.",
+          "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
+          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden."
         }
       }
     },
@@ -46,7 +50,13 @@
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
           "wind_threshold": "Sturmschutz löst aus über",
-          "wind_release": "Sturmschutz gibt frei unter"
+          "wind_release": "Sturmschutz gibt frei unter",
+          "notify_target": "Benachrichtigungsziel",
+          "dry_run": "Testlauf für alle Rollläden"
+        },
+        "data_description": {
+          "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
+          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden."
         }
       }
     }
@@ -84,7 +94,8 @@
             "window_sensor_entity": "Fensterkontakt (optional)",
             "shade_with_window_open": "Bei offenem Fenster weiter beschatten",
             "seating_point": "Aufsetzpunkt überschreiben (optional)",
-            "shaded_tilt": "Lamellenwinkel während der Beschattung"
+            "shaded_tilt": "Lamellenwinkel während der Beschattung",
+            "dry_run": "Testlauf"
           },
           "data_description": {
             "azimuth": "Himmelsrichtung, in die das Fenster zeigt. 0 ist Norden, 90 Osten, 180 Süden, 270 Westen.",
@@ -92,7 +103,8 @@
             "fov_left": "Nur unter 90 Grad verkleinern, wenn real etwas im Weg steht, etwa eine Laibung, ein Balkon oder ein Nachbarhaus. Links ist beim Südfenster die Vormittagsseite.",
             "shade_with_window_open": "Aus lässt den Rollladen bei offenem Fenster in Ruhe. Nur für Fenster einschalten, die gekippt statt weit geöffnet werden, denn ein Kontakt kann beides nicht unterscheiden.",
             "seating_point": "Position, ab der das Glas vollständig verdeckt ist. Leer lassen, um den Standardwert des Typs zu verwenden. Zum Ermitteln den Rollladen langsam herunterfahren, bis der Lichtspalt unten verschwindet.",
-            "indoor_temp_entity": "Ein Sensor, oder eine Klima-Entität, deren aktuelle Temperatur verwendet wird."
+            "indoor_temp_entity": "Ein Sensor, oder eine Klima-Entität, deren aktuelle Temperatur verwendet wird.",
+            "dry_run": "Ermittelt, was passieren würde, ohne diesen Rollladen zu bewegen. Entscheidungssensor, Dashboard und Benachrichtigungen melden weiter, sodass du es einige sonnige Tage beobachten kannst."
           }
         }
       }

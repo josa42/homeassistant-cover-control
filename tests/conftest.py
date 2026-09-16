@@ -12,6 +12,7 @@ from custom_components.cover_control.const import (
     CONF_COOL_ABOVE,
     CONF_COVER_ENTITY,
     CONF_COVER_TYPE,
+    CONF_DRY_RUN,
     CONF_MAX_DEPTH,
     CONF_OUTDOOR_TEMP,
     CONF_PV_POWER,
@@ -151,3 +152,23 @@ def setup_entry(hass: HomeAssistant):
         await hass.async_block_till_done()
 
     return _setup
+
+
+@pytest.fixture
+def dry_run_entry(hass: HomeAssistant) -> MockConfigEntry:
+    """The same hub and cover, with the cover in dry run."""
+    mock_entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Cover Control",
+        data=HUB_DATA,
+        subentries_data=[
+            ConfigSubentryData(
+                data={**COVER_DATA, CONF_DRY_RUN: True},
+                subentry_type="cover",
+                title="Raffstore",
+                unique_id=None,
+            )
+        ],
+    )
+    mock_entry.add_to_hass(hass)
+    return mock_entry

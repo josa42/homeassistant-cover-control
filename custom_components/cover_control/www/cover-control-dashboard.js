@@ -29,7 +29,9 @@ const LABELS = {
     reason: "Reason",
     targetPosition: "Target position",
     targetTilt: "Target tilt",
+    wouldMove: "Would move the cover",
     acted: "Moved the cover",
+    dryRun: "Dry run",
     blockedBy: "Blocked by",
     episode: "Episode running",
     sunOnWindow: "Sun on the window",
@@ -41,6 +43,7 @@ const LABELS = {
     wind: "Wind",
     inputs: "Inputs",
     why: "Why",
+    dryRunNotice: "**Dry run.** Nothing is being moved; this is what would happen.",
   },
   de: {
     overview: "Übersicht",
@@ -56,7 +59,9 @@ const LABELS = {
     reason: "Grund",
     targetPosition: "Zielposition",
     targetTilt: "Ziel-Lamellenwinkel",
+    wouldMove: "Würde den Rollladen bewegen",
     acted: "Rollladen bewegt",
+    dryRun: "Testlauf",
     blockedBy: "Blockiert durch",
     episode: "Episode läuft",
     sunOnWindow: "Sonne auf dem Fenster",
@@ -68,6 +73,7 @@ const LABELS = {
     wind: "Wind",
     inputs: "Eingangswerte",
     why: "Warum",
+    dryRunNotice: "**Testlauf.** Es wird nichts bewegt; das ist, was passieren würde.",
   },
 };
 
@@ -117,6 +123,7 @@ function collect(hass) {
     const decision = cover.entities.sensor;
     const state = decision ? hass.states[decision] : undefined;
     cover.coverEntity = state && state.attributes.cover_entity;
+    cover.dryRun = Boolean(state && state.attributes.dry_run);
   }
 
   covers.sort((a, b) => a.name.localeCompare(b.name));
@@ -128,7 +135,9 @@ function attributeRows(entity, t) {
     ["reason_code", t.reason],
     ["target_position", t.targetPosition],
     ["target_tilt", t.targetTilt],
+    ["would_move", t.wouldMove],
     ["acted", t.acted],
+    ["dry_run", t.dryRun],
     ["blocked_by", t.blockedBy],
     ["episode_active", t.episode],
     ["sun_on_window", t.sunOnWindow],
@@ -199,6 +208,7 @@ function overviewView(hub, covers, t) {
         entity: cover.entities.sensor,
         name: t.decision,
         state_content: ["state", "reason_code"],
+        ...(cover.dryRun ? { icon: "mdi:test-tube" } : {}),
       });
     }
     if (cover.entities.binary_sensor) {
@@ -241,6 +251,12 @@ function debugView(covers, t) {
         type: "markdown",
         content: [
           `**{{ states('${decision}') }}**`,
+          "",
+          // Rendered live, so a cover switched into dry run says so without
+          // the dashboard having to be regenerated.
+          `{% if state_attr('${decision}', 'dry_run') %}`,
+          t.dryRunNotice,
+          "{% endif %}",
           "",
           `{{ state_attr('${decision}', 'message') }}`,
         ].join("\n"),

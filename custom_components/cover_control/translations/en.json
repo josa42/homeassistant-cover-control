@@ -16,12 +16,16 @@
           "pv_threshold": "PV power counts as bright above",
           "allowed_weather_states": "Weather conditions that allow acting",
           "wind_threshold": "Storm protection triggers above",
-          "wind_release": "Storm protection releases below"
+          "wind_release": "Storm protection releases below",
+          "notify_target": "Notification target",
+          "dry_run": "Dry run for every cover"
         },
         "data_description": {
           "wind_source_entity": "Leave empty to read wind speed from the weather entity.",
           "pv_threshold": "Only used when a PV power sensor is configured.",
-          "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate."
+          "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate.",
+          "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
+          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover."
         }
       }
     },
@@ -46,7 +50,13 @@
           "pv_threshold": "PV power counts as bright above",
           "allowed_weather_states": "Weather conditions that allow acting",
           "wind_threshold": "Storm protection triggers above",
-          "wind_release": "Storm protection releases below"
+          "wind_release": "Storm protection releases below",
+          "notify_target": "Notification target",
+          "dry_run": "Dry run for every cover"
+        },
+        "data_description": {
+          "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
+          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover."
         }
       }
     }
@@ -84,7 +94,8 @@
             "window_sensor_entity": "Window contact (optional)",
             "shade_with_window_open": "Keep shading while the window is open",
             "seating_point": "Seating point override (optional)",
-            "shaded_tilt": "Slat angle while shading"
+            "shaded_tilt": "Slat angle while shading",
+            "dry_run": "Dry run"
           },
           "data_description": {
             "azimuth": "Compass direction the window faces. 0 is north, 90 east, 180 south, 270 west.",
@@ -92,7 +103,8 @@
             "fov_left": "Reduce below 90 degrees only if something real blocks the sun, such as a reveal, balcony or neighbouring building. Left is the morning side for a south-facing window.",
             "shade_with_window_open": "Off leaves the cover alone while the window is open. Turn this on only for windows that are tilted rather than opened wide, since a contact cannot tell the two apart.",
             "seating_point": "Position at which the cover has fully covered the glass. Leave empty to use the cover type default. To measure it, lower the cover slowly until the light gap at the bottom disappears.",
-            "indoor_temp_entity": "A sensor, or a climate entity whose current temperature is used."
+            "indoor_temp_entity": "A sensor, or a climate entity whose current temperature is used.",
+            "dry_run": "Work out what would happen without moving this cover. The decision sensor, the dashboard and the notifications all keep reporting, so you can watch it for a few sunny days before handing over control."
           }
         }
       }

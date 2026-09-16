@@ -24,7 +24,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_DRY_RUN,
     CONF_INDOOR_TEMP,
+    CONF_NOTIFY_TARGET,
     CONF_OUTDOOR_TEMP,
     CONF_PV_POWER,
     CONF_WEATHER,
@@ -59,6 +61,8 @@ class CoverRuntime:
         self.cover_entity: str = self.config["cover_entity"]
         self.state = EpisodeState()
         self.enabled = True
+        self.dry_run = False
+        self.last_signature: tuple | None = None
         self.history: deque[Decision] = deque(maxlen=DECISION_HISTORY)
         self.decision: Decision | None = None
         self._contexts: dict[str, datetime] = {}
@@ -168,6 +172,11 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         with what we asked for.
         """
         if not runtime.state.active or runtime.state.override:
+            return
+        if runtime.dry_run:
+            # In dry run nothing we do is ever ours, so every movement would
+            # look like a human and latch an override on the first tick, which
+            # is exactly the state that stops reporting what it would do.
             return
         if runtime.is_ours(event.context):
             return
@@ -318,6 +327,10 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         decisions: dict[str, Decision] = {}
         for runtime in self.runtimes.values():
             config = EffectiveConfig(self.hub_config, runtime.config)
+            # Either level can force dry run; neither can cancel the other.
+            runtime.dry_run = bool(self.hub_config.get(CONF_DRY_RUN)) or bool(
+                runtime.config.get(CONF_DRY_RUN)
+            )
             inputs = await self._build_inputs(runtime, config)
             decision, state = evaluate(
                 inputs,
@@ -333,15 +346,52 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.history.append(decision)
             decisions[runtime.subentry_id] = decision
             self.hass.bus.async_fire(EVENT_DECISION, decision.as_dict())
-            _LOGGER.debug("%s: %s", runtime.cover_entity, decision.message)
+            _LOGGER.debug(
+                "%s:%s %s",
+                runtime.cover_entity,
+                " [dry run]" if decision.dry_run else "",
+                decision.message,
+            )
+            await self._async_notify(runtime, decision)
         return decisions
+
+    async def _async_notify(self, runtime: CoverRuntime, decision: Decision) -> None:
+        """Tell the configured target about a change, and only about a change."""
+        target = self.hub_config.get(CONF_NOTIFY_TARGET)
+        if not target:
+            return
+        signature = decision.notify_signature
+        if signature == runtime.last_signature:
+            return
+        runtime.last_signature = signature
+
+        domain, _, service = str(target).partition(".")
+        if not domain or not service:
+            _LOGGER.warning("Notification target %r is not a service", target)
+            return
+
+        prefix = "[Dry run] " if decision.dry_run else ""
+        try:
+            await self.hass.services.async_call(
+                domain,
+                service,
+                {
+                    "title": f"Cover Control: {runtime.title}",
+                    "message": f"{prefix}{decision.message}",
+                },
+                blocking=False,
+            )
+        except Exception as err:  # noqa: BLE001
+            # A broken notify target must never stop covers from being managed.
+            _LOGGER.warning("Could not notify %s: %s", target, err)
 
     async def _apply(
         self, runtime: CoverRuntime, decision: Decision, inputs: Inputs
     ) -> Decision:
         """Send the commands a decision asks for, if they are worth sending."""
+        dry_run = runtime.dry_run
         if decision.target_position is None:
-            return decision
+            return replace(decision, dry_run=dry_run)
 
         target = decision.target_position
         current = inputs.current_position
@@ -354,9 +404,23 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         ):
             return replace(
                 decision,
+                would_move=False,
                 acted=False,
+                dry_run=dry_run,
                 message=f"{decision.message} Already within "
                 f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
+            )
+
+        if dry_run:
+            # Everything above still ran, so the decision is the real one. Only
+            # the command is withheld, and no expected position is recorded
+            # because the cover was never asked to go anywhere.
+            return replace(
+                decision,
+                would_move=True,
+                acted=False,
+                dry_run=True,
+                message=f"{decision.message} No command sent.",
             )
 
         context = Context()
@@ -392,11 +456,12 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.expected_position = None
             return replace(
                 decision,
+                would_move=True,
                 acted=False,
                 blocked_by="command_failed",
                 message=f"{decision.message} The command failed: {err}",
             )
-        return replace(decision, acted=True)
+        return replace(decision, would_move=True, acted=True)
 
     # --- commands from the entities ----------------------------------------
 
