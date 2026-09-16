@@ -51,6 +51,32 @@ code, the target position and the readings behind it.
 
 <br><br>
 
+## Dashboard
+
+The integration ships a dashboard strategy that builds the whole dashboard from
+the entity registry, so covers you add later appear on their own.
+
+Create a new dashboard, open its raw configuration editor and put in:
+
+```yaml
+strategy:
+  type: custom:cover-control
+```
+
+You get an overview view with the controls, and a debug view laying out the
+decision behind every cover: the reason sentence, the target, what blocked it,
+and the readings it used. To place just one of them inside a dashboard you
+already have, use it as a view strategy instead:
+
+```yaml
+views:
+  - strategy:
+      type: custom:cover-control
+      view: debug
+```
+
+<br><br>
+
 ## Documentation
 
 [How it works](docs/how-it-works.md) covers the priority order, the shading
