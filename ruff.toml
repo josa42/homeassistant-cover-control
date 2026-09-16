@@ -1,0 +1,16 @@
+# Home Assistant 2026.9 requires Python 3.14.
+target-version = "py314"
+
+[lint]
+select = [
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "I",  # isort
+]
+ignore = []
+
+[lint.pycodestyle]
+max-line-length = 120
+
+[lint.per-file-ignores]
+"tests/*" = ["E501"]

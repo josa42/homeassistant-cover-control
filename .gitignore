@@ -1,6 +1,39 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# PyTest
 .pytest_cache/
-.ruff_cache/
 .coverage
+htmlcov/
+
+# Ruff
+.ruff_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
 .venv/
+
+# Local Home Assistant config
+config/*
+!config/.gitkeep
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
