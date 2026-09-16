@@ -57,10 +57,21 @@ Decisions in dry run report `would_move: true` with `acted: false`, which is
 what the dashboard reads to show what would have happened.
 
 **Notifications** go to one notify service, configured on the hub, for example
-`notify.mobile_app_phone` or `notify.persistent_notification`. A message is sent
-when something changes: a new intent, a new reason, or a movement. The target
-drifts by a percent or two on every tick as the sun moves, and that alone is
-never a notification. Dry-run messages are prefixed `[Dry run]`.
+`notify.mobile_app_phone` or `notify.persistent_notification`. Each evaluation
+sends at most one notification, listing every cover that changed.
+
+A change is a cover actually being moved to a new position, or the intent or
+its reason changing: an episode started or ended, storm protection kicked in,
+a window opened, a cover was moved by hand. These never notify on their own:
+
+- the target drifting without moving the cover: below the motor-protection
+  threshold, or in dry run, where the cover never catches up
+- the same command being sent again while a cover is still travelling
+- a cover briefly going unavailable, as every cover does during a restart
+- a short debounce that recovers
+- the first evaluation after startup, unless it moves a cover
+
+Dry-run lines are prefixed `[Dry run]`.
 
 <br><br>
 

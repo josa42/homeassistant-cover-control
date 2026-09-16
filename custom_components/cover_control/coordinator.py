@@ -63,6 +63,7 @@ class CoverRuntime:
         self.enabled = True
         self.dry_run = False
         self.last_signature: tuple | None = None
+        self.last_notified_destination: tuple | None = None
         self.history: deque[Decision] = deque(maxlen=DECISION_HISTORY)
         self.decision: Decision | None = None
         self._contexts: dict[str, datetime] = {}
@@ -325,6 +326,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
     async def _async_update_data(self) -> dict[str, Decision]:
         self.load_subentries()
         decisions: dict[str, Decision] = {}
+        changes: list[tuple[CoverRuntime, Decision]] = []
         for runtime in self.runtimes.values():
             config = EffectiveConfig(self.hub_config, runtime.config)
             # Either level can force dry run; neither can cancel the other.
@@ -352,33 +354,57 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 " [dry run]" if decision.dry_run else "",
                 decision.message,
             )
-            await self._async_notify(runtime, decision)
+            if self._is_change(runtime, decision):
+                changes.append((runtime, decision))
+        # One notification for the whole evaluation, however many covers changed.
+        await self._async_notify(changes)
         return decisions
 
-    async def _async_notify(self, runtime: CoverRuntime, decision: Decision) -> None:
-        """Tell the configured target about a change, and only about a change."""
-        target = self.hub_config.get(CONF_NOTIFY_TARGET)
-        if not target:
-            return
-        signature = decision.notify_signature
-        if signature == runtime.last_signature:
-            return
-        runtime.last_signature = signature
+    @staticmethod
+    def _is_change(runtime: CoverRuntime, decision: Decision) -> bool:
+        """Record the decision and report whether it is worth notifying about.
 
+        A cover actually being moved always is. Otherwise only a changed intent
+        or reason counts, and the first evaluation after startup just sets the
+        baseline, or every restart would notify about every cover.
+
+        Dry run never sends a command, so target drift there stays silent.
+        """
+        signature = decision.notify_signature
+        if signature is None:
+            return False
+        previous = runtime.last_signature
+        runtime.last_signature = signature
+        if decision.acted:
+            # While a cover travels it keeps reporting positions short of the
+            # target, so the same command is sent again; only a new target is
+            # a new movement.
+            destination = (decision.target_position, decision.target_tilt)
+            if destination != runtime.last_notified_destination:
+                runtime.last_notified_destination = destination
+                return True
+        return previous is not None and previous != signature
+
+    async def _async_notify(self, changes: list[tuple[CoverRuntime, Decision]]) -> None:
+        """Send a single notification describing every cover that changed."""
+        target = self.hub_config.get(CONF_NOTIFY_TARGET)
+        if not target or not changes:
+            return
         domain, _, service = str(target).partition(".")
         if not domain or not service:
             _LOGGER.warning("Notification target %r is not a service", target)
             return
 
-        prefix = "[Dry run] " if decision.dry_run else ""
+        lines = [
+            f"{'[Dry run] ' if decision.dry_run else ''}{runtime.title}: "
+            f"{decision.message}"
+            for runtime, decision in changes
+        ]
         try:
             await self.hass.services.async_call(
                 domain,
                 service,
-                {
-                    "title": f"Cover Control: {runtime.title}",
-                    "message": f"{prefix}{decision.message}",
-                },
+                {"title": "Cover Control", "message": "\n".join(lines)},
                 blocking=False,
             )
         except Exception as err:  # noqa: BLE001

@@ -144,17 +144,17 @@ class Decision:
         }
 
     @property
-    def notify_signature(self) -> tuple:
-        """What counts as a change worth notifying about.
+    def notify_signature(self) -> tuple | None:
+        """What counts as a change worth notifying about, or None to ignore.
 
-        The target drifts by a percent or two on every tick as the sun moves,
-        so it only enters the signature when a move is actually warranted.
-        Otherwise a notification would fire on every single evaluation.
+        Only the intent and its reason count. The target drifts by a percent
+        on every tick as the sun moves, and in dry run the cover never catches
+        up, so a target in the signature meant a notification every tick.
+
+        Transient decisions return None and are skipped entirely: a restart
+        makes every cover briefly unavailable, and a debounce is a short hold
+        inside an episode that usually recovers. Neither is a change.
         """
-        return (
-            str(self.intent),
-            str(self.reason),
-            self.target_position if self.would_move else None,
-            self.target_tilt if self.would_move else None,
-            self.dry_run,
-        )
+        if self.intent is Intent.UNAVAILABLE or self.reason is Reason.DEBOUNCING:
+            return None
+        return (str(self.intent), str(self.reason), self.dry_run)
