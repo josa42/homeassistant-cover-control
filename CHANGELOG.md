@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- **Reconfiguring a cover ends with a readable message.** It showed
+  `reconfigure_successful` instead of "Die Neukonfiguration war erfolgreich".
 - **Dashboard tiles show what they are.** Tile names repeated the cover's name,
   so the resume button read "Arbeitszimmer Raff…" and the part saying what it
   does was cut off. The cover's name is already the heading above, so tiles now

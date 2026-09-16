@@ -173,3 +173,55 @@ def test_dashboard_templates_use_translated_states() -> None:
     """states() in a card template renders the raw state, e.g. window_open."""
     source = (COMPONENT / "www" / "cover-control-dashboard.js").read_text()
     assert "{{ states(" not in source
+
+
+async def test_every_flow_outcome_is_translated(hass: HomeAssistant) -> None:
+    """Regression: reconfiguring a cover ended on a raw reconfigure_successful.
+
+    Runs the real flows to their abort, so a reason produced implicitly by a
+    Home Assistant helper is caught as well as one written out in the source.
+    """
+    from homeassistant.config_entries import ConfigSubentryData
+
+    strings = load("strings.json")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        subentries_data=[
+            ConfigSubentryData(
+                data={CONF_COVER_ENTITY: "cover.raffstore"},
+                subentry_type="cover",
+                title="Raffstore",
+                unique_id=None,
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    hass.states.async_set("cover.raffstore", "open", {"supported_features": 15})
+
+    # A second hub.
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert result["reason"] in strings["config"]["abort"]
+
+    # Reconfiguring a cover.
+    subentry_id = next(iter(entry.subentries))
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {
+            "name": "Raffstore",
+            "cover_type": "rolladen",
+            "azimuth": 180.0,
+            "window_height": 1.5,
+            "sill_height": 0.0,
+            "max_penetration_depth": 0.0,
+            "fov_left": 90.0,
+            "fov_right": 90.0,
+            "storm_action": "ignore",
+            "shade_with_window_open": False,
+            "dry_run": False,
+        },
+    )
+    assert result["type"] == "abort"
+    abort = strings["config_subentries"]["cover"].get("abort", {})
+    assert result["reason"] in abort, f"untranslated outcome: {result['reason']}"

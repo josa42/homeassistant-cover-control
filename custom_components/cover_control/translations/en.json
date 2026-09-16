@@ -106,6 +106,9 @@
             "dry_run": "Work out what would happen without moving this cover. The decision sensor, the dashboard and the notifications all keep reporting, so you can watch it for a few sunny days before handing over control."
           }
         }
+      },
+      "abort": {
+        "reconfigure_successful": "Reconfiguration was successful"
       }
     }
   },
