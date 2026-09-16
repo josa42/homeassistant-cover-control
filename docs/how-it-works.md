@@ -30,11 +30,14 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 - Weather entity, used for the condition filter and for wind
 - PV power sensor (optional)
 - Wind source (optional, falls back to the weather entity)
+- Notification target, and a dry run that applies to every cover
 - Shading and solar-heating temperature thresholds, outdoor and indoor
 - PV brightness threshold and the list of weather conditions that allow acting
 - Storm trigger and release wind speeds
 
 ### Per cover
+
+- **Dry run**, which withholds every command including storm protection
 
 - **Cover type**, pre-selected from what the cover reports it can do
 - **Orientation** in degrees (0 north, 90 east, 180 south, 270 west)

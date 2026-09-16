@@ -39,6 +39,31 @@ which level it came from.
 
 <br><br>
 
+## Dry run and notifications
+
+**Dry run** evaluates everything as normal and reports what it would do, without
+sending a single command. The decision sensor, the dashboard and the
+notifications all keep working, so you can watch it for a few sunny days before
+letting it near a real cover.
+
+Set it per cover, or on the hub to cover everything at once. The two are OR-ed,
+so a hub-wide dry run cannot be cancelled by a per-cover setting.
+
+> [!WARNING]
+> Dry run withholds **every** command, including storm protection. A cover left
+> in dry run is not protected from wind.
+
+Decisions in dry run report `would_move: true` with `acted: false`, which is
+what the dashboard reads to show what would have happened.
+
+**Notifications** go to one notify service, configured on the hub, for example
+`notify.mobile_app_phone` or `notify.persistent_notification`. A message is sent
+when something changes: a new intent, a new reason, or a movement. The target
+drifts by a percent or two on every tick as the sun moves, and that alone is
+never a notification. Dry-run messages are prefixed `[Dry run]`.
+
+<br><br>
+
 ## Entities
 
 | Device | Entities |
