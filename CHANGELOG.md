@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- **Dashboard tiles show what they are.** Tile names repeated the cover's name,
+  so the resume button read "Arbeitszimmer Raff…" and the part saying what it
+  does was cut off. The cover's name is already the heading above, so tiles now
+  show only their own name, such as "Fortsetzen".
 - **The dashboard strategy loads reliably.** Most page loads failed with
   "Timeout waiting for strategy element ll-strategy-dashboard-cover-control to
   be registered", and reloading only sometimes helped. While it starts, the

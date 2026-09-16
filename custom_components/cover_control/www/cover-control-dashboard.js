@@ -94,6 +94,22 @@ function labels(hass) {
   return LABELS[lang.split("-")[0]] || LABELS.en;
 }
 
+/**
+ * The entity's own name, without the device name in front of it.
+ *
+ * Friendly names are "<device> <entity>", e.g. "Arbeitszimmer Raffstore
+ * Fortsetzen". Every tile sits under a heading that already names the device,
+ * and a tile truncates, so the part that says what it is got cut off.
+ */
+function entityName(hass, entityId, device) {
+  const state = hass.states[entityId];
+  const friendly = state && state.attributes.friendly_name;
+  if (friendly && device && friendly.startsWith(`${device} `)) {
+    return friendly.slice(device.length + 1);
+  }
+  return undefined;
+}
+
 function deviceName(device) {
   return device.name_by_user || device.name || "";
 }
@@ -118,9 +134,11 @@ function collect(hass) {
   for (const [deviceId, entityIds] of byDevice) {
     const device = (hass.devices || {})[deviceId];
     if (!device) continue;
-    const group = { device, name: deviceName(device), entities: {} };
+    const group = { device, name: deviceName(device), entities: {}, names: {} };
     for (const entityId of entityIds) {
-      group.entities[entityId.split(".")[0]] = entityId;
+      const domain = entityId.split(".")[0];
+      group.entities[domain] = entityId;
+      group.names[domain] = entityName(hass, entityId, group.name);
     }
     if (device.via_device_id && byDevice.has(device.via_device_id)) {
       covers.push(group);
@@ -197,7 +215,7 @@ function overviewView(hub, covers, t) {
   if (hub) {
     const cards = [{ type: "heading", heading: t.control }];
     if (hub.entities.switch) {
-      cards.push({ type: "tile", entity: hub.entities.switch });
+      cards.push({ type: "tile", entity: hub.entities.switch, name: hub.names.switch });
     }
     if (hub.entities.sensor) {
       // The count alone does not say what it counts, so break it down.
@@ -207,12 +225,13 @@ function overviewView(hub, covers, t) {
       });
     }
     if (hub.entities.binary_sensor) {
-      cards.push({ type: "tile", entity: hub.entities.binary_sensor });
+      cards.push({ type: "tile", entity: hub.entities.binary_sensor, name: hub.names.binary_sensor });
     }
     if (hub.entities.button) {
       cards.push({
         type: "tile",
         entity: hub.entities.button,
+        name: hub.names.button,
         tap_action: { action: "toggle" },
       });
     }
@@ -239,15 +258,16 @@ function overviewView(hub, covers, t) {
       });
     }
     if (cover.entities.binary_sensor) {
-      cards.push({ type: "tile", entity: cover.entities.binary_sensor });
+      cards.push({ type: "tile", entity: cover.entities.binary_sensor, name: cover.names.binary_sensor });
     }
     if (cover.entities.switch) {
-      cards.push({ type: "tile", entity: cover.entities.switch });
+      cards.push({ type: "tile", entity: cover.entities.switch, name: cover.names.switch });
     }
     if (cover.entities.button) {
       cards.push({
         type: "tile",
         entity: cover.entities.button,
+        name: cover.names.button,
         tap_action: { action: "toggle" },
       });
     }

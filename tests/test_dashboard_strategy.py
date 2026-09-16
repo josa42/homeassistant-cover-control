@@ -206,3 +206,63 @@ def test_overview_shows_every_status_attribute(tmp_path) -> None:
     assert {row["attribute"] for row in rows} == expected
     assert all(row.get("name") for row in rows), "every row needs a readable name"
 
+
+def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
+    """Tiles truncate, so "Arbeitszimmer Raffstore Fortsetzen" showed as
+    "Arbeitszimmer Raff..." under a heading that already names the cover."""
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    def entity(entity_id, device, friendly, attributes=None):
+        return (
+            {"entity_id": entity_id, "platform": "cover_control", "device_id": device},
+            {"entity_id": entity_id, "state": "on", "attributes": {"friendly_name": friendly, **(attributes or {})}},
+        )
+
+    entities = {
+        "switch.cc_enabled": entity("switch.cc_enabled", "hub", "Cover Control Aktiviert"),
+        "button.cc_resume_all": entity("button.cc_resume_all", "hub", "Cover Control Alle fortsetzen"),
+        "sensor.az_decision": entity(
+            "sensor.az_decision", "az", "Arbeitszimmer Raffstore Entscheidung", {"cover_entity": "cover.az"}
+        ),
+        "button.az_resume": entity("button.az_resume", "az", "Arbeitszimmer Raffstore Fortsetzen"),
+        "switch.az_enabled": entity("switch.az_enabled", "az", "Arbeitszimmer Raffstore Aktiviert"),
+        "binary_sensor.az_override": entity(
+            "binary_sensor.az_override", "az", "Arbeitszimmer Raffstore Manueller Eingriff"
+        ),
+    }
+    hass = {
+        "locale": {"language": "de"},
+        "devices": {
+            "hub": {"id": "hub", "name": "Cover Control", "via_device_id": None},
+            "az": {"id": "az", "name": "Arbeitszimmer Raffstore", "via_device_id": "hub"},
+        },
+        "entities": {k: v[0] for k, v in entities.items()},
+        "states": {k: v[1] for k, v in entities.items()},
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    overview = json.loads(result.stdout)["views"][0]
+    names = {
+        card["entity"]: card.get("name")
+        for section in overview["sections"]
+        for card in section["cards"]
+        if card["type"] == "tile" and card["entity"] in entities
+    }
+    assert names == {
+        "switch.cc_enabled": "Aktiviert",
+        "button.cc_resume_all": "Alle fortsetzen",
+        "sensor.az_decision": "Entscheidung",
+        "button.az_resume": "Fortsetzen",
+        "switch.az_enabled": "Aktiviert",
+        "binary_sensor.az_override": "Manueller Eingriff",
+    }
