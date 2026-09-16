@@ -91,3 +91,14 @@ def test_position_glass_roundtrip(seating: int, fraction: float) -> None:
 def test_penetration_depth_is_measured_from_the_top_of_the_opening() -> None:
     """Half of a 2 m window open at 45 degrees puts sun 1 m into the room."""
     assert geometry.penetration_depth(0.5, 0.0, 2.0, 45.0) == pytest.approx(1.0)
+
+
+def test_fully_covered_glass_lets_no_sun_in() -> None:
+    """A closed cover must report zero depth, not a ray entering at the sill.
+
+    Regression: with a raised sill the depth was computed from the sill height
+    even when no glass was open, so the debug output claimed sun was reaching
+    metres into a room the cover had fully shaded.
+    """
+    assert geometry.penetration_depth(0.0, 0.9, 1.5, 6.77) == 0.0
+    assert geometry.penetration_depth(0.0, 0.0, 2.0, 45.0) == 0.0

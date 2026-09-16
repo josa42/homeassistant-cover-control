@@ -60,6 +60,11 @@ def penetration_depth(
         return 0.0
     if profile >= _GRAZING:
         return 0.0
+    if glass_fraction <= 0.0:
+        # The glass is fully covered, so nothing gets in. Without this the
+        # formula would still measure a ray entering at the sill and report a
+        # depth for a cover that is letting no light through at all.
+        return 0.0
     top_of_opening = sill_height + glass_fraction * window_height
     return top_of_opening / math.tan(math.radians(profile))
 
