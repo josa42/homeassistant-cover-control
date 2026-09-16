@@ -48,6 +48,13 @@ if [ "$CURRENT_BRANCH" != "main" ]; then
     fi
 fi
 
+# Fail before the slow checks rather than after them.
+if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null \
+    || git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+    print_error "Tag ${TAG} already exists"
+    exit 1
+fi
+
 print_info "Pulling latest changes..."
 git pull origin "$CURRENT_BRANCH"
 
@@ -112,9 +119,15 @@ else
     sed -i "s/^STRATEGY_VERSION = \"[^\"]*\"/STRATEGY_VERSION = \"${VERSION}\"/" "$INIT_FILE"
 fi
 
-print_info "Committing version bump..."
 git add "$MANIFEST_FILE" "$INIT_FILE"
-git commit -m "chore: bump version to ${VERSION}"
+# Releasing the version already in the manifest (the first release, say)
+# changes nothing, and an empty commit would abort the whole release.
+if git diff --cached --quiet; then
+    print_info "Version files already at ${VERSION}, nothing to commit"
+else
+    print_info "Committing version bump..."
+    git commit -m "chore: bump version to ${VERSION}"
+fi
 
 print_info "Creating tag ${TAG}..."
 git tag -a "$TAG" -m "Release ${TAG}"
