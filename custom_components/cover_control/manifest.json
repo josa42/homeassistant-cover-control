@@ -1,9 +1,10 @@
 {
   "domain": "cover_control",
   "name": "Cover Control",
-  "after_dependencies": ["sun", "weather"],
+  "after_dependencies": ["frontend", "http", "sun", "weather"],
   "codeowners": ["@josa42"],
   "config_flow": true,
+  "dependencies": [],
   "documentation": "https://github.com/josa42/homeassistant-cover-control",
   "integration_type": "hub",
   "iot_class": "calculated",

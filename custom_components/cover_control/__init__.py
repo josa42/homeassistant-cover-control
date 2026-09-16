@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .coordinator import CoverControlCoordinator
+
+_LOGGER = logging.getLogger(__name__)
+
+STRATEGY_URL_PATH = "/cover-control/cover-control-dashboard.js"
+STRATEGY_VERSION = "0.1.0"
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -18,6 +29,31 @@ PLATFORMS: list[Platform] = [
 ]
 
 type CoverControlConfigEntry = ConfigEntry[CoverControlCoordinator]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the dashboard strategy. Called once per Home Assistant session."""
+    http = getattr(hass, "http", None)
+    if http is None:
+        return True
+    strategy = Path(__file__).parent / "www" / "cover-control-dashboard.js"
+    if not strategy.is_file():
+        _LOGGER.warning("Dashboard strategy asset missing at %s", strategy)
+        return True
+    try:
+        await http.async_register_static_paths(
+            [StaticPathConfig(STRATEGY_URL_PATH, str(strategy), cache_headers=False)]
+        )
+        # Version query string, so a browser does not keep serving the strategy
+        # it cached before an upgrade.
+        add_extra_js_url(hass, f"{STRATEGY_URL_PATH}?v={STRATEGY_VERSION}")
+    except Exception as err:  # noqa: BLE001
+        # The dashboard is optional polish. Whatever goes wrong here, shading
+        # covers must still work, so this can never abort the setup.
+        _LOGGER.warning("Could not register the dashboard strategy: %s", err)
+    else:
+        _LOGGER.debug("Registered dashboard strategy at %s", STRATEGY_URL_PATH)
+    return True
 
 
 async def async_setup_entry(
