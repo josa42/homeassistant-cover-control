@@ -3,34 +3,63 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever it targets: work lands on long-running
+  # branches before it reaches main, and that is exactly where a broken build
+  # needs to show up.
   pull_request:
-  workflow_dispatch:
+  # Weekly, Sunday 00:00 UTC: catches upstream Home Assistant breakage without
+  # a run a day on a repo that goes quiet for months at a time.
+  schedule:
+    - cron: "0 0 * * 0"
 
 jobs:
-  validate:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Hassfest
-        uses: home-assistant/actions/hassfest@master
-      - name: HACS
-        uses: hacs/action@main
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          category: integration
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Lint with ruff
+        run: |
+          ruff check custom_components/ tests/
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
       - name: Install dependencies
         run: |
-          uv venv --python 3.14 .venv
-          uv pip install --python .venv/bin/python \
-            homeassistant==2026.9.2 pytest-homeassistant-custom-component ruff
-      - name: Lint
+          python -m pip install --upgrade pip
+          pip install -r requirements_test.txt
+
+      - name: Run tests with pytest
         run: |
-          .venv/bin/python -m ruff check custom_components tests
-          .venv/bin/python -m ruff format --check custom_components tests
-      - name: Test
-        run: .venv/bin/python -m pytest tests/ -q
+          pytest tests/ -v --tb=short
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
