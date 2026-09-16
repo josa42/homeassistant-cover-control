@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The dashboard strategy loads reliably.** Most page loads failed with
+  "Timeout waiting for strategy element ll-strategy-dashboard-cover-control to
+  be registered", and reloading only sometimes helped. While it starts, the
+  Home Assistant frontend replaces its registry of custom elements with a new,
+  empty one. Once the strategy file was cached it ran before that swap, so it
+  registered itself in the registry that was then thrown away. It now keeps
+  registering until the frontend's own registry is in place.
+
 ## 0.1.1 - 2026-09-16
 
 ### Changed

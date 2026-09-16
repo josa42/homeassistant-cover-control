@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -24,8 +25,74 @@ def test_asset_ships_with_the_integration() -> None:
 def test_asset_registers_both_strategy_kinds() -> None:
     """The element names are the contract the frontend looks the strategy up by."""
     source = ASSET.read_text(encoding="utf-8")
-    assert 'customElements.define(\n  "ll-strategy-dashboard-cover-control"' in source
-    assert 'customElements.define(\n  "ll-strategy-view-cover-control"' in source
+    assert '"ll-strategy-dashboard-cover-control"' in source
+    assert '"ll-strategy-view-cover-control"' in source
+
+
+# Runs the shipped module against fake registries and replays what the frontend
+# does on a cached page load: this module registers first, then the app bundle's
+# scoped custom element polyfill swaps in a new, empty registry.
+_SWAP_HARNESS = r"""
+const fs = require("fs");
+const vm = require("vm");
+class Registry {
+  constructor() { this.defs = new Map(); }
+  get(tag) { return this.defs.get(tag); }
+  define(tag, cls) {
+    if (this.defs.has(tag)) throw new Error("already defined: " + tag);
+    this.defs.set(tag, cls);
+  }
+}
+const timers = [];
+const window = { customElements: new Registry() };
+const context = vm.createContext({
+  window, customElements: window.customElements, HTMLElement: class {},
+  setTimeout: (fn) => timers.push(fn), Date, Object,
+});
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), context);
+const original = window.customElements;
+const tick = (n) => { for (let i = 0; i < n && timers.length; i++) timers.shift()(); };
+tick(3);
+// The polyfill replaces the registry, then the app defines its root element.
+window.customElements = new Registry();
+tick(3);
+window.customElements.define("home-assistant", class {});
+tick(3);
+const final = window.customElements;
+console.log(JSON.stringify({
+  inOriginal: !!original.get("ll-strategy-dashboard-cover-control"),
+  inFinal: !!final.get("ll-strategy-dashboard-cover-control"),
+  viewInFinal: !!final.get("ll-strategy-view-cover-control"),
+  stoppedAfterSettling: timers.length === 0,
+}));
+"""
+
+
+def test_registration_survives_the_frontend_swapping_the_registry(tmp_path) -> None:
+    """Regression: the dashboard timed out on most cached page loads.
+
+    The frontend replaces window.customElements during startup. A cached copy of
+    this module runs before that, so its elements were lost with the old
+    registry and the frontend waited five seconds for an element it could not
+    find.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    harness = tmp_path / "harness.js"
+    harness.write_text(_SWAP_HARNESS)
+    result = subprocess.run(
+        [node, str(harness), str(ASSET.resolve())],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    outcome = json.loads(result.stdout)
+    assert outcome["inFinal"], "strategy must be registered in the registry the frontend uses"
+    assert outcome["viewInFinal"]
+    assert outcome["stoppedAfterSettling"], "registration must stop once the registry settled"
 
 
 def test_asset_surfaces_dry_run() -> None:

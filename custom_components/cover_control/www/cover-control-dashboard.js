@@ -331,11 +331,33 @@ class CoverControlViewStrategy extends HTMLElement {
   }
 }
 
-customElements.define(
-  "ll-strategy-dashboard-cover-control",
-  CoverControlDashboardStrategy,
-);
-customElements.define(
-  "ll-strategy-view-cover-control",
-  CoverControlViewStrategy,
-);
+const STRATEGIES = {
+  "ll-strategy-dashboard-cover-control": CoverControlDashboardStrategy,
+  "ll-strategy-view-cover-control": CoverControlViewStrategy,
+};
+
+function register(registry) {
+  for (const [tag, element] of Object.entries(STRATEGIES)) {
+    if (!registry.get(tag)) registry.define(tag, element);
+  }
+}
+
+// This module is loaded with add_extra_js_url, in parallel with the frontend's
+// app bundle. That bundle installs a scoped custom element polyfill which
+// replaces window.customElements with a new, empty registry. When this module
+// runs first, which is the usual case once it is cached, the definitions land
+// in the registry that is thrown away, and the dashboard times out waiting for
+// an element it can never find.
+//
+// So register now, and keep registering into whatever window.customElements is
+// until the frontend's own <home-assistant> element appears in it: from then on
+// that registry is the one the frontend uses.
+const FINAL_REGISTRY_TIMEOUT_MS = 60000;
+const started = Date.now();
+(function registerUntilSettled() {
+  register(window.customElements);
+  const settled = window.customElements.get("home-assistant");
+  if (!settled && Date.now() - started < FINAL_REGISTRY_TIMEOUT_MS) {
+    setTimeout(registerUntilSettled, 25);
+  }
+})();
