@@ -63,7 +63,6 @@
   },
   "config_subentries": {
     "cover": {
-      "title": "Gesteuerter Rollladen",
       "entry_type": "Gesteuerter Rollladen",
       "initiate_flow": {
         "user": "Rollladen hinzufügen",

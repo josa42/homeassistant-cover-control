@@ -63,7 +63,6 @@
   },
   "config_subentries": {
     "cover": {
-      "title": "Controlled cover",
       "entry_type": "Controlled cover",
       "initiate_flow": {
         "user": "Add a cover",

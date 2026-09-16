@@ -10,6 +10,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
@@ -17,6 +18,9 @@ from .const import DOMAIN
 from .coordinator import CoverControlCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+# There is nothing to configure in YAML; everything lives in config entries.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 STRATEGY_URL_PATH = "/cover-control/cover-control-dashboard.js"
 STRATEGY_VERSION = "0.1.0"
