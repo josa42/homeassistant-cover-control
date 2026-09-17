@@ -37,12 +37,13 @@ from .const import (
     DOMAIN,
     EVENT_DECISION,
     MIN_MOVEMENT_DELTA,
+    PAUSE_FALLBACK,
     SETTLE_TIME,
     SUBENTRY_TYPE_COVER,
     TICK_INTERVAL,
     Intent,
 )
-from .engine import EpisodeState, Inputs, evaluate
+from .engine import EpisodeState, Inputs, evaluate, released_from_pause
 from .models import Decision, EffectiveConfig
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,6 +70,21 @@ class CoverRuntime:
         self._contexts: dict[str, datetime] = {}
         self.expected_position: int | None = None
         self.last_command: datetime | None = None
+
+    @property
+    def is_paused(self) -> bool:
+        """Whether a pause is still running.
+
+        The engine clears an expired deadline on its next evaluation, so the
+        clock is what decides here, not the field being set.
+        """
+        until = self.state.paused_until
+        return until is not None and dt_util.utcnow() < until
+
+    @property
+    def is_suspended(self) -> bool:
+        """Whether anything at all is holding this cover back from control."""
+        return self.is_paused or self.state.override
 
     def remember_context(self, context: Context) -> None:
         """Record a context we created so its state changes are known as ours."""
@@ -491,18 +507,74 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
 
     # --- commands from the entities ----------------------------------------
 
-    async def async_resume(self, subentry_id: str) -> None:
-        """Hand control back for one cover."""
+    def next_sunrise(self) -> datetime:
+        """When a pause started now should end.
+
+        ``sun.sun`` always reports the *next* rising, so pausing at noon runs
+        to tomorrow morning and pausing at midnight runs to the same morning,
+        which is what "not today" means in both cases.
+        """
+        sun = self.hass.states.get("sun.sun")
+        raw = sun.attributes.get("next_rising") if sun else None
+        parsed = dt_util.parse_datetime(raw) if isinstance(raw, str) else None
+        if parsed is None:
+            _LOGGER.warning(
+                "sun.sun reports no next_rising; pausing for %s instead",
+                PAUSE_FALLBACK,
+            )
+            return dt_util.utcnow() + PAUSE_FALLBACK
+        return dt_util.as_utc(parsed)
+
+    async def async_pause(self, subentry_id: str) -> None:
+        """Leave one cover alone until the next sunrise."""
         runtime = self.runtimes.get(subentry_id)
         if runtime is None:
             return
-        runtime.state = replace(runtime.state, override=False)
+        runtime.state = replace(runtime.state, paused_until=self.next_sunrise())
+        await self.async_request_refresh()
+
+    async def async_pause_all(self) -> None:
+        """Leave every cover alone until the next sunrise."""
+        until = self.next_sunrise()
+        for runtime in self.runtimes.values():
+            runtime.state = replace(runtime.state, paused_until=until)
+        await self.async_request_refresh()
+
+    async def async_set_paused_until(
+        self, subentry_id: str, until: datetime | None
+    ) -> None:
+        """Set a pause deadline directly, for restoring one across a restart."""
+        runtime = self.runtimes.get(subentry_id)
+        if runtime is None:
+            return
+        runtime.state = replace(runtime.state, paused_until=until)
+        await self.async_request_refresh()
+
+    @staticmethod
+    def _resumed(runtime: CoverRuntime) -> EpisodeState:
+        """The state after pressing resume.
+
+        Resuming a pause starts fresh, exactly like a pause running out, so a
+        resume pressed in the evening cannot revive the afternoon's episode
+        and open the cover. Resuming only a manual override keeps the episode:
+        it is current, and resuming it is the point.
+        """
+        if runtime.state.paused_until is not None:
+            return released_from_pause(runtime.state)
+        return replace(runtime.state, override=False)
+
+    async def async_resume(self, subentry_id: str) -> None:
+        """Hand control back for one cover, however it was suspended."""
+        runtime = self.runtimes.get(subentry_id)
+        if runtime is None:
+            return
+        runtime.state = self._resumed(runtime)
         await self.async_request_refresh()
 
     async def async_resume_all(self) -> None:
-        """Hand control back for every cover."""
+        """Hand control back for every cover, however it was suspended."""
         for runtime in self.runtimes.values():
-            runtime.state = replace(runtime.state, override=False)
+            runtime.state = self._resumed(runtime)
         await self.async_request_refresh()
 
     async def async_set_master(self, enabled: bool) -> None:

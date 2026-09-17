@@ -59,6 +59,7 @@ class HubStatusSensor(HubEntity, SensorEntity):
             "shading": _count(runtimes, Intent.COOLING),
             "heating": _count(runtimes, Intent.HEATING),
             "overridden": sum(1 for r in runtimes if r.state.override),
+            "paused": sum(1 for r in runtimes if r.is_paused),
             "storm": sum(1 for r in runtimes if r.state.storm_latched),
             "enabled": self.coordinator.master_enabled,
         }

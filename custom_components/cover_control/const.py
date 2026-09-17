@@ -32,6 +32,11 @@ CONTEXT_TTL = timedelta(minutes=5)
 #: Number of decisions kept per cover for the diagnostics download.
 DECISION_HISTORY = 50
 
+#: Where a pause ends when the sun's next rising is unknown. Only reached if
+#: ``sun.sun`` is missing or has no ``next_rising``, which normally cannot
+#: happen, so a whole day off is the safer guess than a few minutes.
+PAUSE_FALLBACK = timedelta(hours=12)
+
 
 class CoverType(StrEnum):
     """Physical type of the cover, which fixes the motor/glass mapping."""
@@ -54,6 +59,7 @@ class Intent(StrEnum):
 
     STORM = "storm"
     WINDOW_OPEN = "window_open"
+    PAUSED = "paused"
     OVERRIDE = "override"
     COOLING = "cooling"
     HEATING = "heating"
@@ -74,6 +80,7 @@ class Reason(StrEnum):
     COVER_UNAVAILABLE = "cover_unavailable"
     STORM_WIND = "storm_wind"
     WINDOW_IS_OPEN = "window_is_open"
+    PAUSED = "paused"
     MANUAL_OVERRIDE = "manual_override"
     SUN_NOT_ON_WINDOW = "sun_not_on_window"
     NOT_BRIGHT = "not_bright"

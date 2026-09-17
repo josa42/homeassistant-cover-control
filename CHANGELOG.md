@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added
+
+- **Pause covers until the next sunrise.** A Pause button on each cover, and
+  Pause all on the hub, leave covers alone until the sun rises again, for an
+  evening when the automatic behaviour is not wanted. Storm protection still
+  acts while paused, and a pause survives a restart. When it ends, by running
+  out or by pressing Resume, the cover starts fresh without moving, so a pause
+  pressed on a hot afternoon does not open the blinds after sunrise. A paused
+  indicator per cover and a paused count on the status sensor show what is
+  paused and until when.
+
+### Changed
+
+- **Resume is only available when there is something to resume.** It used to
+  be pressable with no override or pause to end.
+
 ### Fixed
 
 - **Reconfiguring a cover ends with a readable message.** It showed

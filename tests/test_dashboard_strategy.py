@@ -184,7 +184,14 @@ def test_overview_shows_every_status_attribute(tmp_path) -> None:
     hass = {
         "locale": {"language": "en"},
         "devices": {"hub": {"id": "hub", "name": "Cover Control", "via_device_id": None}},
-        "entities": {status: {"entity_id": status, "platform": "cover_control", "device_id": "hub"}},
+        "entities": {
+            status: {
+                "entity_id": status,
+                "platform": "cover_control",
+                "device_id": "hub",
+                "translation_key": "status",
+            }
+        },
         "states": {status: {"entity_id": status, "state": "0", "attributes": {}}},
     }
     (tmp_path / "hass.json").write_text(json.dumps(hass))
@@ -218,22 +225,37 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
     if node is None:
         pytest.skip("node is not installed")
 
-    def entity(entity_id, device, friendly, attributes=None):
+    def entity(entity_id, device, friendly, translation_key, attributes=None):
         return (
-            {"entity_id": entity_id, "platform": "cover_control", "device_id": device},
+            {
+                "entity_id": entity_id,
+                "platform": "cover_control",
+                "device_id": device,
+                "translation_key": translation_key,
+            },
             {"entity_id": entity_id, "state": "on", "attributes": {"friendly_name": friendly, **(attributes or {})}},
         )
 
     entities = {
-        "switch.cc_enabled": entity("switch.cc_enabled", "hub", "Cover Control Aktiviert"),
-        "button.cc_resume_all": entity("button.cc_resume_all", "hub", "Cover Control Alle fortsetzen"),
-        "sensor.az_decision": entity(
-            "sensor.az_decision", "az", "Arbeitszimmer Raffstore Entscheidung", {"cover_entity": "cover.az"}
+        "switch.cc_enabled": entity("switch.cc_enabled", "hub", "Cover Control Aktiviert", "enabled"),
+        "button.cc_pause_all": entity(
+            "button.cc_pause_all", "hub", "Cover Control Alle pausieren", "pause_all"
         ),
-        "button.az_resume": entity("button.az_resume", "az", "Arbeitszimmer Raffstore Fortsetzen"),
-        "switch.az_enabled": entity("switch.az_enabled", "az", "Arbeitszimmer Raffstore Aktiviert"),
+        "button.cc_resume_all": entity(
+            "button.cc_resume_all", "hub", "Cover Control Alle fortsetzen", "resume_all"
+        ),
+        "sensor.az_decision": entity(
+            "sensor.az_decision", "az", "Arbeitszimmer Raffstore Entscheidung", "decision",
+            {"cover_entity": "cover.az"},
+        ),
+        "button.az_pause": entity("button.az_pause", "az", "Arbeitszimmer Raffstore Pausieren", "pause"),
+        "button.az_resume": entity("button.az_resume", "az", "Arbeitszimmer Raffstore Fortsetzen", "resume"),
+        "switch.az_enabled": entity("switch.az_enabled", "az", "Arbeitszimmer Raffstore Aktiviert", "enabled"),
         "binary_sensor.az_override": entity(
-            "binary_sensor.az_override", "az", "Arbeitszimmer Raffstore Manueller Eingriff"
+            "binary_sensor.az_override", "az", "Arbeitszimmer Raffstore Manueller Eingriff", "override_active"
+        ),
+        "binary_sensor.az_paused": entity(
+            "binary_sensor.az_paused", "az", "Arbeitszimmer Raffstore Pausiert", "paused"
         ),
     }
     hass = {
@@ -260,9 +282,12 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
     }
     assert names == {
         "switch.cc_enabled": "Aktiviert",
+        "button.cc_pause_all": "Alle pausieren",
         "button.cc_resume_all": "Alle fortsetzen",
         "sensor.az_decision": "Entscheidung",
+        "button.az_pause": "Pausieren",
         "button.az_resume": "Fortsetzen",
         "switch.az_enabled": "Aktiviert",
         "binary_sensor.az_override": "Manueller Eingriff",
+        "binary_sensor.az_paused": "Pausiert",
     }

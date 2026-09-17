@@ -130,6 +130,9 @@
           "overridden": {
             "name": "Manueller Eingriff"
           },
+          "paused": {
+            "name": "Pausiert"
+          },
           "storm": {
             "name": "Sturmschutz"
           },
@@ -143,6 +146,7 @@
         "state": {
           "storm": "Sturmschutz",
           "window_open": "Fenster offen",
+          "paused": "Pausiert",
           "override": "Manueller Eingriff",
           "cooling": "Beschattung",
           "heating": "Sonnenheizen",
@@ -159,6 +163,7 @@
               "cover_unavailable": "Rollladen nicht verfügbar",
               "storm_wind": "Sturmschutz",
               "window_is_open": "Fenster ist offen",
+              "paused": "Von Hand pausiert",
               "manual_override": "Von Hand bewegt",
               "sun_not_on_window": "Sonne nicht auf dem Fenster",
               "not_bright": "Nicht hell genug",
@@ -181,6 +186,7 @@
               "manual_override": "Von Hand bewegt",
               "master_switch": "Hauptschalter aus",
               "no_position_support": "Keine Positionssteuerung",
+              "paused": "Von Hand pausiert",
               "sun_unavailable": "Sonnenstand nicht verfügbar",
               "window_open": "Fenster offen"
             }
@@ -256,6 +262,14 @@
       },
       "override_active": {
         "name": "Manueller Eingriff"
+      },
+      "paused": {
+        "name": "Pausiert",
+        "state_attributes": {
+          "paused_until": {
+            "name": "Pausiert bis"
+          }
+        }
       }
     },
     "switch": {
@@ -264,8 +278,14 @@
       }
     },
     "button": {
+      "pause_all": {
+        "name": "Alle pausieren"
+      },
       "resume_all": {
         "name": "Alle fortsetzen"
+      },
+      "pause": {
+        "name": "Pausieren"
       },
       "resume": {
         "name": "Fortsetzen"

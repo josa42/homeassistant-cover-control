@@ -79,8 +79,12 @@ Dry-run lines are prefixed `[Dry run]`.
 
 | Device | Entities |
 | --- | --- |
-| Central | Enable switch, resume-all button, storm indicator, status sensor |
-| Each cover | Enable switch, decision sensor, manual-override indicator, resume button |
+| Central | Enable switch, pause-all and resume-all buttons, storm indicator, status sensor |
+| Each cover | Enable switch, decision sensor, manual-override and paused indicators, pause and resume buttons |
+
+**Pause** leaves a cover alone until the next sunrise, and **Resume** hands it
+back straight away. Buttons are only available when pressing them does
+something.
 
 The decision sensor carries the current intent as its state, plus the reason
 code, the target position and the readings behind it.

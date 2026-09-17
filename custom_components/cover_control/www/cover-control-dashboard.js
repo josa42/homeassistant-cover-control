@@ -47,6 +47,7 @@ const LABELS = {
     coversShading: "Shading",
     coversHeating: "Solar heating",
     coversOverridden: "Manually overridden",
+    coversPaused: "Paused",
     coversStorm: "Storm protection",
     enabled: "Enabled",
     dryRunNotice: "**Dry run.** Nothing is being moved; this is what would happen.",
@@ -83,6 +84,7 @@ const LABELS = {
     coversShading: "Beschattung",
     coversHeating: "Sonnenheizen",
     coversOverridden: "Manueller Eingriff",
+    coversPaused: "Pausiert",
     coversStorm: "Sturmschutz",
     enabled: "Aktiviert",
     dryRunNotice: "**Testlauf.** Es wird nichts bewegt; das ist, was passieren würde.",
@@ -115,31 +117,52 @@ function deviceName(device) {
 }
 
 /**
+ * One tile's worth of entity, or null when the entity is not there.
+ *
+ * Entities are keyed by their translation key, because a device carries more
+ * than one of some domains: two buttons and two binary sensors per cover. The
+ * domain is kept as a fallback key so that a registry entry without a
+ * translation key still renders its device's main tile rather than nothing.
+ */
+function pick(group, key, fallbackDomain) {
+  const entity = group.entities[key] || (fallbackDomain && group.entities[fallbackDomain]);
+  if (!entity) return null;
+  const name = group.names[key] || (fallbackDomain && group.names[fallbackDomain]);
+  return { entity, name };
+}
+
+/**
  * Split our entities into the hub device and the controlled covers.
  *
  * The hub is the device nothing points at; every cover device carries a
- * via_device_id back to it. Within a device the domain is enough to tell the
- * entities apart, because there is exactly one of each.
+ * via_device_id back to it.
  */
 function collect(hass) {
   const byDevice = new Map();
   for (const entry of Object.values(hass.entities || {})) {
     if (entry.platform !== DOMAIN || !entry.device_id) continue;
     if (!byDevice.has(entry.device_id)) byDevice.set(entry.device_id, []);
-    byDevice.get(entry.device_id).push(entry.entity_id);
+    byDevice.get(entry.device_id).push(entry);
   }
 
   let hub = null;
   const covers = [];
-  for (const [deviceId, entityIds] of byDevice) {
+  for (const [deviceId, entries] of byDevice) {
     const device = (hass.devices || {})[deviceId];
     if (!device) continue;
-    const group = { device, name: deviceName(device), entities: {}, names: {} };
-    for (const entityId of entityIds) {
+    const group = { device, name: deviceName(device), entities: {}, names: {}, buttons: [] };
+    for (const entry of entries) {
+      const entityId = entry.entity_id;
       const domain = entityId.split(".")[0];
-      group.entities[domain] = entityId;
-      group.names[domain] = entityName(hass, entityId, group.name);
+      const key = entry.translation_key || domain;
+      group.entities[key] = entityId;
+      group.names[key] = entityName(hass, entityId, group.name);
+      if (domain === "button") {
+        group.buttons.push({ entity: entityId, name: group.names[key] });
+      }
     }
+    // Sorted so the dashboard does not reshuffle with the registry's order.
+    group.buttons.sort((a, b) => a.entity.localeCompare(b.entity));
     if (device.via_device_id && byDevice.has(device.via_device_id)) {
       covers.push(group);
     } else {
@@ -150,8 +173,8 @@ function collect(hass) {
   // The controlled cover is not one of our entities, so take it from the
   // decision sensor, which reports the entity it is driving.
   for (const cover of covers) {
-    const decision = cover.entities.sensor;
-    const state = decision ? hass.states[decision] : undefined;
+    const decision = pick(cover, "decision", "sensor");
+    const state = decision ? hass.states[decision.entity] : undefined;
     cover.coverEntity = state && state.attributes.cover_entity;
     cover.dryRun = Boolean(state && state.attributes.dry_run);
   }
@@ -204,6 +227,7 @@ function statusRows(entity, t) {
     ["shading", t.coversShading],
     ["heating", t.coversHeating],
     ["overridden", t.coversOverridden],
+    ["paused", t.coversPaused],
     ["storm", t.coversStorm],
     ["enabled", t.enabled],
   ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
@@ -214,26 +238,20 @@ function overviewView(hub, covers, t) {
 
   if (hub) {
     const cards = [{ type: "heading", heading: t.control }];
-    if (hub.entities.switch) {
-      cards.push({ type: "tile", entity: hub.entities.switch, name: hub.names.switch });
-    }
-    if (hub.entities.sensor) {
+    const enabled = pick(hub, "enabled", "switch");
+    if (enabled) cards.push({ type: "tile", ...enabled });
+    const status = pick(hub, "status", "sensor");
+    if (status) {
       // The count alone does not say what it counts, so break it down.
       cards.push({
         type: "entities",
-        entities: [hub.entities.sensor, ...statusRows(hub.entities.sensor, t)],
+        entities: [status.entity, ...statusRows(status.entity, t)],
       });
     }
-    if (hub.entities.binary_sensor) {
-      cards.push({ type: "tile", entity: hub.entities.binary_sensor, name: hub.names.binary_sensor });
-    }
-    if (hub.entities.button) {
-      cards.push({
-        type: "tile",
-        entity: hub.entities.button,
-        name: hub.names.button,
-        tap_action: { action: "toggle" },
-      });
+    const storm = pick(hub, "storm_active", "binary_sensor");
+    if (storm) cards.push({ type: "tile", ...storm });
+    for (const button of hub.buttons) {
+      cards.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
     }
     sections.push({ type: "grid", cards });
   }
@@ -248,28 +266,26 @@ function overviewView(hub, covers, t) {
         features: [{ type: "cover-open-close" }, { type: "cover-position" }],
       });
     }
-    if (cover.entities.sensor) {
+    const decision = pick(cover, "decision", "sensor");
+    if (decision) {
       cards.push({
         type: "tile",
-        entity: cover.entities.sensor,
+        entity: decision.entity,
         name: t.decision,
         state_content: ["state", "reason_code"],
         ...(cover.dryRun ? { icon: "mdi:test-tube" } : {}),
       });
     }
-    if (cover.entities.binary_sensor) {
-      cards.push({ type: "tile", entity: cover.entities.binary_sensor, name: cover.names.binary_sensor });
-    }
-    if (cover.entities.switch) {
-      cards.push({ type: "tile", entity: cover.entities.switch, name: cover.names.switch });
-    }
-    if (cover.entities.button) {
-      cards.push({
-        type: "tile",
-        entity: cover.entities.button,
-        name: cover.names.button,
-        tap_action: { action: "toggle" },
-      });
+    const override = pick(cover, "override_active", "binary_sensor");
+    if (override) cards.push({ type: "tile", ...override });
+    // No domain fallback: it would repeat the override tile on a registry
+    // entry that carries no translation key.
+    const paused = pick(cover, "paused", null);
+    if (paused) cards.push({ type: "tile", ...paused });
+    const enabled = pick(cover, "enabled", "switch");
+    if (enabled) cards.push({ type: "tile", ...enabled });
+    for (const button of cover.buttons) {
+      cards.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
     }
     sections.push({ type: "grid", cards });
   }
@@ -287,8 +303,9 @@ function debugView(covers, t) {
   const sections = [];
 
   for (const cover of covers) {
-    const decision = cover.entities.sensor;
-    if (!decision) continue;
+    const picked = pick(cover, "decision", "sensor");
+    if (!picked) continue;
+    const decision = picked.entity;
 
     const cards = [
       { type: "heading", heading: cover.name },

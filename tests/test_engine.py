@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
@@ -357,6 +358,7 @@ def test_every_decision_records_the_gates_it_applied() -> None:
         "cover_enabled",
         "storm",
         "window_closed",
+        "not_paused",
         "sun_available",
         "sun_on_window",
         "bright",
@@ -377,3 +379,62 @@ def test_full_record_is_serialisable() -> None:
 
     decision, _ = run()
     assert json.loads(json.dumps(decision.as_dict()))["reason_code"] == "shading"
+
+
+# --- pause ------------------------------------------------------------------
+
+
+def test_a_pause_leaves_the_cover_alone() -> None:
+    paused = EpisodeState(paused_until=NOW + timedelta(hours=8))
+    decision, state = run(paused)
+    assert decision.intent is Intent.PAUSED
+    assert decision.reason is Reason.PAUSED
+    assert decision.target_position is None
+    assert decision.blocked_by == "paused"
+    assert state.paused_until == NOW + timedelta(hours=8)
+
+
+def test_a_pause_expires_on_the_clock() -> None:
+    """At the deadline control resumes in the same evaluation, not one later."""
+    expired = EpisodeState(paused_until=NOW)
+    decision, state = run(expired)
+    assert decision.intent is Intent.COOLING
+    assert state.paused_until is None
+
+
+def test_storm_outranks_a_pause_without_cancelling_it() -> None:
+    """Hardware protection still acts, and the cover is still paused afterwards."""
+    until = NOW + timedelta(hours=8)
+    decision, state = run(EpisodeState(paused_until=until), wind_speed=55.0)
+    assert decision.intent is Intent.STORM
+    assert decision.target_position == 100
+    assert state.paused_until == until
+
+    decision, state = run(state, wind_speed=10.0)
+    assert decision.intent is Intent.PAUSED
+    assert state.paused_until == until
+
+
+def test_an_open_window_still_reports_first_while_paused() -> None:
+    decision, _ = run(EpisodeState(paused_until=NOW + timedelta(hours=8)), window_open=True)
+    assert decision.intent is Intent.WINDOW_OPEN
+
+
+def test_a_pause_ending_overnight_does_not_open_the_cover() -> None:
+    """Regression: a pause pressed during an afternoon episode kept that episode
+    frozen overnight. When the pause ran out after sunrise the episode ended,
+    and ending an episode opens the cover fully."""
+    _, afternoon = run(EpisodeState(), now=NOW)
+    assert afternoon.active
+    sunrise = NOW + timedelta(hours=15, minutes=50)
+    paused = replace(afternoon, override=True, paused_until=sunrise)
+
+    morning = dict(sun_azimuth=70.0, sun_elevation=3.0, outdoor_temp=14.0)
+    first, state = run(paused, now=sunrise + timedelta(minutes=5), **morning)
+    later, state = run(state, now=sunrise + timedelta(minutes=20), **morning)
+
+    for decision in (first, later):
+        assert decision.target_position is None
+        assert decision.reason is not Reason.EPISODE_ENDED
+    assert not state.active
+    assert not state.override, "the stale episode's override goes with it"

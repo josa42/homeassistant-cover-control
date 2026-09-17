@@ -9,9 +9,10 @@ order is fixed:
 | --- | --- | --- |
 | 1 | Storm | Wind above the threshold. Retracts, closes or ignores, per cover. Outranks everything, including a manual override. |
 | 2 | Window open | The cover is left alone while the window contact reports open. |
-| 3 | Manual override | Someone moved it by hand. Hands off until the episode ends. |
-| 4 | Cooling / heating | Shades against solar gain, or opens to let the sun warm the room. |
-| 5 | Neutral | Nothing to do. The cover is not touched. |
+| 3 | Paused | Paused with the Pause button. Hands off until the next sunrise. |
+| 4 | Manual override | Someone moved it by hand. Hands off until the episode ends. |
+| 5 | Cooling / heating | Shades against solar gain, or opens to let the sun warm the room. |
+| 6 | Neutral | Nothing to do. The cover is not touched. |
 
 Morning opening, night mode, ventilation positions and notifications are
 deliberately **not** included. Those are schedule shaped and vary per
@@ -117,6 +118,25 @@ reported position still disagrees with what was asked for.
 An override holds for the rest of the current episode. When the episode ends
 the integration takes control back and opens the cover. The **Resume** button on
 each cover, or **Resume all** on the hub, hands control back immediately.
+
+<br><br>
+
+## Pause
+
+**Pause** on a cover, or **Pause all** on the hub, leaves covers alone until the
+next sunrise, for an evening when the automatic behaviour is not wanted. It uses
+`sun.sun`'s next rising, so a pause pressed at noon runs to tomorrow morning and
+one pressed at 23:00 runs to that same morning.
+
+- Storm protection still acts while a cover is paused, and the pause continues
+  once the wind drops.
+- A pause survives a restart of Home Assistant.
+- When a pause ends, by running out or by pressing **Resume**, the cover starts
+  fresh. Whatever episode was running when the pause began is dropped without a
+  command, so a pause pressed on a hot afternoon does not open the blinds just
+  after sunrise. A new episode begins once the sun and temperature call for one.
+
+Unlike a manual override, which ends with the episode, a pause ends on the clock.
 
 <br><br>
 

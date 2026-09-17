@@ -72,6 +72,18 @@ class EpisodeState:
     override: bool = False
     storm_latched: bool = False
     gate_false_since: datetime | None = None
+    #: Set by the pause button. Until this moment nothing but storm protection
+    #: touches the cover. Unlike ``override``, which the engine releases when
+    #: the episode ends, this one expires on the clock.
+    paused_until: datetime | None = None
+
+
+def released_from_pause(state: EpisodeState) -> EpisodeState:
+    """The state a cover returns to when a pause ends, however it ends.
+
+    Only the storm latch survives: it tracks the wind, not the episode.
+    """
+    return EpisodeState(storm_latched=state.storm_latched)
 
 
 def _seating_point(config: EffectiveConfig) -> int:
@@ -197,6 +209,9 @@ def evaluate(
             override=False,
             storm_latched=True,
             gate_false_since=None,
+            # A storm outranks a pause for the length of the storm, but it does
+            # not cancel it: once the wind drops the cover stays paused.
+            paused_until=state.paused_until,
         )
         return decide(
             Intent.STORM,
@@ -227,6 +242,34 @@ def evaluate(
             "shading continues with the window open" if inputs.window_open else "",
         )
     )
+
+    # --- pause, which the user asked for by hand ---------------------------
+    # Deliberately before the episode bookkeeping: while paused the engine
+    # freezes rather than tracking gates it is not allowed to act on.
+    if state.paused_until is not None and inputs.now >= state.paused_until:
+        # Whatever episode was running when the pause started is hours old. If
+        # it resumed, it would find the sun gone and end, and ending an episode
+        # opens the cover: a pause pressed on a hot afternoon would open the
+        # bedroom blinds just after sunrise. Start fresh instead, without a
+        # command; a new episode begins once the conditions call for one.
+        state = released_from_pause(state)
+    gates.append(
+        Gate(
+            "not_paused",
+            state.paused_until is None,
+            ""
+            if state.paused_until is None
+            else f"paused until {state.paused_until.isoformat()}",
+        )
+    )
+    if state.paused_until is not None:
+        return decide(
+            Intent.PAUSED,
+            Reason.PAUSED,
+            "Paused by hand; leaving this cover alone until the next sunrise.",
+            blocked_by="paused",
+            new_state=state,
+        )
 
     # --- solar gates --------------------------------------------------------
     if inputs.sun_elevation is None or inputs.sun_azimuth is None:
@@ -323,6 +366,7 @@ def evaluate(
             override=state.override,
             storm_latched=storm_latched,
             gate_false_since=None,
+            paused_until=state.paused_until,
         )
     elif state.active:
         # An episode is running but the gates no longer support it. Hold the
@@ -356,6 +400,7 @@ def evaluate(
             override=False,
             storm_latched=storm_latched,
             gate_false_since=None,
+            paused_until=state.paused_until,
         )
         return decide(
             Intent.NEUTRAL,

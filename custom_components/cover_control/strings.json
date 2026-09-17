@@ -130,6 +130,9 @@
           "overridden": {
             "name": "Manually overridden"
           },
+          "paused": {
+            "name": "Paused"
+          },
           "storm": {
             "name": "Storm protection"
           },
@@ -143,6 +146,7 @@
         "state": {
           "storm": "Storm protection",
           "window_open": "Window open",
+          "paused": "Paused",
           "override": "Manual override",
           "cooling": "Shading",
           "heating": "Solar heating",
@@ -159,6 +163,7 @@
               "cover_unavailable": "Cover unavailable",
               "storm_wind": "Storm protection",
               "window_is_open": "Window is open",
+              "paused": "Paused by hand",
               "manual_override": "Moved by hand",
               "sun_not_on_window": "Sun not on the window",
               "not_bright": "Not bright enough",
@@ -181,6 +186,7 @@
               "manual_override": "Moved by hand",
               "master_switch": "Master switch off",
               "no_position_support": "No position support",
+              "paused": "Paused by hand",
               "sun_unavailable": "Sun position unavailable",
               "window_open": "Window open"
             }
@@ -256,6 +262,14 @@
       },
       "override_active": {
         "name": "Manual override"
+      },
+      "paused": {
+        "name": "Paused",
+        "state_attributes": {
+          "paused_until": {
+            "name": "Paused until"
+          }
+        }
       }
     },
     "switch": {
@@ -264,8 +278,14 @@
       }
     },
     "button": {
+      "pause_all": {
+        "name": "Pause all"
+      },
       "resume_all": {
         "name": "Resume all"
+      },
+      "pause": {
+        "name": "Pause"
       },
       "resume": {
         "name": "Resume"
