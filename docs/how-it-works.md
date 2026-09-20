@@ -34,6 +34,8 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 - Notification target, and a dry run that applies to every cover
 - Shading and solar-heating temperature thresholds, outdoor and indoor
 - PV brightness threshold and the list of weather conditions that allow acting
+- PV weather override threshold, above which sustained PV power is believed
+  over the weather condition
 - Storm trigger and release wind speeds
 
 ### Per cover
@@ -156,3 +158,9 @@ Unlike a manual override, which ends with the episode, a pause ends on the clock
   which looks like a cloudy sky. A gate must read false continuously for ten
   minutes before it ends an episode, which absorbs curtailment dips and passing
   clouds.
+- Weather entities report a single condition for a whole forecast area, so
+  `cloudy` can arrive while this roof is still in full sun. PV power that stays
+  above the weather override threshold for twenty minutes is therefore believed
+  over the condition, because the inverter is the instrument actually measuring
+  the light. Set that threshold high enough that only real sun reaches it, or to
+  0 to switch the override off.

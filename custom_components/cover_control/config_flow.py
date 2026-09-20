@@ -36,6 +36,7 @@ from .const import (
     CONF_MAX_DEPTH,
     CONF_NOTIFY_TARGET,
     CONF_OUTDOOR_TEMP,
+    CONF_PV_OVERRIDE,
     CONF_PV_POWER,
     CONF_PV_THRESHOLD,
     CONF_SEATING_POINT,
@@ -135,6 +136,9 @@ def _hub_schema(
             vol.Required(
                 CONF_PV_THRESHOLD, default=default(CONF_PV_THRESHOLD)
             ): _number(0, 30000, 50, "W"),
+            vol.Required(CONF_PV_OVERRIDE, default=default(CONF_PV_OVERRIDE)): _number(
+                0, 30000, 50, "W"
+            ),
             vol.Required(
                 CONF_WEATHER_STATES, default=default(CONF_WEATHER_STATES)
             ): selector.SelectSelector(

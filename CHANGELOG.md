@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Sustained PV power now outranks the weather condition.** A weather entity
+  reports one condition for a whole forecast area, so it can say `cloudy` while
+  the roof is in full sun and the covers stay open. PV power that holds above the
+  new **PV power outranks the weather condition above** threshold for twenty
+  minutes now counts as bright on its own. The threshold defaults to 2500 W and
+  0 switches the override off. The `bright` gate in diagnostics says when the
+  weather was overridden and since when.
+
 ## 1.3.0 - 2026-09-17
 
 ### Added

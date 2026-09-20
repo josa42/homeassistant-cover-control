@@ -19,6 +19,11 @@ TICK_INTERVAL = timedelta(minutes=5)
 #: the battery is full) flinging the covers open on a sunny afternoon.
 GATE_DEBOUNCE = timedelta(minutes=10)
 
+#: How long PV power must stay above the weather override threshold before
+#: it is believed over the weather condition. Long enough that a bright gap
+#: in an overcast sky does not count as a sunny afternoon.
+PV_OVERRIDE_SUSTAIN = timedelta(minutes=20)
+
 #: Smaller target changes than this are not sent to the motor.
 MIN_MOVEMENT_DELTA = 5
 
@@ -113,6 +118,7 @@ CONF_HEAT_BELOW = "heat_below"
 CONF_INDOOR_COOL_ABOVE = "indoor_cool_above"
 CONF_INDOOR_HEAT_BELOW = "indoor_heat_below"
 CONF_PV_THRESHOLD = "pv_threshold"
+CONF_PV_OVERRIDE = "pv_override_threshold"
 CONF_WEATHER_STATES = "allowed_weather_states"
 CONF_WIND_THRESHOLD = "wind_threshold"
 CONF_WIND_RELEASE = "wind_release"
@@ -150,6 +156,7 @@ OVERRIDABLE = (
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
     CONF_PV_THRESHOLD,
+    CONF_PV_OVERRIDE,
     CONF_WEATHER_STATES,
     CONF_WIND_THRESHOLD,
     CONF_WIND_RELEASE,
@@ -161,6 +168,7 @@ DEFAULTS: dict[str, object] = {
     CONF_INDOOR_COOL_ABOVE: 23.0,
     CONF_INDOOR_HEAT_BELOW: 21.0,
     CONF_PV_THRESHOLD: 800.0,
+    CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
     CONF_WIND_THRESHOLD: 40.0,
     CONF_WIND_RELEASE: 30.0,

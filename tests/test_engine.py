@@ -12,6 +12,7 @@ from custom_components.cover_control.const import (
     CONF_COOL_ABOVE,
     CONF_COVER_TYPE,
     CONF_MAX_DEPTH,
+    CONF_PV_OVERRIDE,
     CONF_PV_THRESHOLD,
     CONF_SEATING_POINT,
     CONF_SHADE_WINDOW_OPEN,
@@ -37,6 +38,7 @@ HUB = {
     CONF_WIND_THRESHOLD: 40.0,
     CONF_WIND_RELEASE: 30.0,
     CONF_PV_THRESHOLD: 800.0,
+    CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
 }
 
@@ -297,6 +299,61 @@ def test_low_pv_is_not_bright_enough() -> None:
 def test_disallowed_weather_is_not_bright_enough() -> None:
     decision, _ = run(weather="rainy")
     assert decision.reason is Reason.NOT_BRIGHT
+
+
+# --- sustained PV outranking the weather -----------------------------------
+
+
+def test_high_pv_starts_the_override_timer() -> None:
+    _, state = run(weather="cloudy", pv_power=4000.0)
+    assert state.pv_high_since == NOW
+
+
+def test_high_pv_alone_does_not_beat_the_weather_yet() -> None:
+    """Twenty minutes short of the sustain period the weather still wins."""
+    started = EpisodeState(pv_high_since=NOW - timedelta(minutes=19))
+    decision, _ = run(started, weather="cloudy", pv_power=4000.0)
+    assert decision.reason is Reason.NOT_BRIGHT
+
+
+def test_sustained_high_pv_beats_a_disallowed_weather_state() -> None:
+    sustained = EpisodeState(pv_high_since=NOW - timedelta(minutes=20))
+    decision, _ = run(sustained, weather="cloudy", pv_power=4000.0)
+    assert decision.intent is Intent.COOLING
+    assert decision.reason is Reason.SHADING
+
+
+def test_pv_dropping_below_the_override_resets_the_timer() -> None:
+    sustained = EpisodeState(pv_high_since=NOW - timedelta(minutes=30))
+    decision, state = run(sustained, weather="cloudy", pv_power=2400.0)
+    assert state.pv_high_since is None
+    assert decision.reason is Reason.NOT_BRIGHT
+
+
+def test_the_override_timer_runs_while_the_sun_is_off_the_window() -> None:
+    """Otherwise a west window would never reach the sustain period."""
+    decision, state = run(sun_azimuth=20.0, pv_power=4000.0)
+    assert decision.reason is Reason.SUN_NOT_ON_WINDOW
+    assert state.pv_high_since == NOW
+
+
+def test_a_zero_override_threshold_switches_the_override_off() -> None:
+    sustained = EpisodeState(pv_high_since=NOW - timedelta(minutes=30))
+    decision, state = run(
+        sustained,
+        hub={CONF_PV_OVERRIDE: 0.0},
+        weather="cloudy",
+        pv_power=9000.0,
+    )
+    assert state.pv_high_since is None
+    assert decision.reason is Reason.NOT_BRIGHT
+
+
+def test_sustained_pv_does_not_rescue_a_cold_day() -> None:
+    """Brightness is only one gate; the temperature still has to call."""
+    sustained = EpisodeState(pv_high_since=NOW - timedelta(minutes=30))
+    decision, _ = run(sustained, weather="cloudy", pv_power=4000.0, outdoor_temp=18.0)
+    assert decision.reason is Reason.TEMP_NEUTRAL
 
 
 def test_pv_is_optional() -> None:

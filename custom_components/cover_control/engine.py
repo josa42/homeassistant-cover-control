@@ -21,6 +21,7 @@ from .const import (
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
     CONF_MAX_DEPTH,
+    CONF_PV_OVERRIDE,
     CONF_PV_THRESHOLD,
     CONF_SEATING_POINT,
     CONF_SHADE_WINDOW_OPEN,
@@ -34,6 +35,7 @@ from .const import (
     COVER_DEFAULTS,
     DEFAULT_SEATING_POINT,
     GATE_DEBOUNCE,
+    PV_OVERRIDE_SUSTAIN,
     CoverType,
     Intent,
     Reason,
@@ -76,14 +78,21 @@ class EpisodeState:
     #: touches the cover. Unlike ``override``, which the engine releases when
     #: the episode ends, this one expires on the clock.
     paused_until: datetime | None = None
+    #: Since when PV power has been continuously above the weather override
+    #: threshold. Tracks the sky rather than the episode, so it survives
+    #: everything the episode bookkeeping resets.
+    pv_high_since: datetime | None = None
 
 
 def released_from_pause(state: EpisodeState) -> EpisodeState:
     """The state a cover returns to when a pause ends, however it ends.
 
-    Only the storm latch survives: it tracks the wind, not the episode.
+    Only the storm latch and the PV timer survive: both track the weather,
+    not the episode.
     """
-    return EpisodeState(storm_latched=state.storm_latched)
+    return EpisodeState(
+        storm_latched=state.storm_latched, pv_high_since=state.pv_high_since
+    )
 
 
 def _seating_point(config: EffectiveConfig) -> int:
@@ -151,6 +160,23 @@ def evaluate(
         )
         return decision, (new_state if new_state is not None else state)
 
+    # --- sustained PV, tracked before any gate can return early ------------
+    # The timer has to run even while the cover is unavailable or the sun is
+    # off this window, otherwise a west-facing cover would start counting at
+    # the moment the sun arrives and never reach the sustain period on the
+    # afternoon it matters.
+    pv_override = float(config.get(CONF_PV_OVERRIDE) or 0.0)
+    pv_high = (
+        pv_override > 0
+        and inputs.pv_power is not None
+        and inputs.pv_power >= pv_override
+    )
+    pv_high_since = (state.pv_high_since or inputs.now) if pv_high else None
+    pv_sustained = (
+        pv_high_since is not None and inputs.now - pv_high_since >= PV_OVERRIDE_SUSTAIN
+    )
+    state = replace(state, pv_high_since=pv_high_since)
+
     # --- availability and enable switches ---------------------------------
     if not inputs.cover_available:
         gates.append(Gate("cover_available", False, "cover entity is unavailable"))
@@ -212,6 +238,7 @@ def evaluate(
             # A storm outranks a pause for the length of the storm, but it does
             # not cancel it: once the wind drops the cover stays paused.
             paused_until=state.paused_until,
+            pv_high_since=pv_high_since,
         )
         return decide(
             Intent.STORM,
@@ -304,15 +331,20 @@ def evaluate(
     pv_threshold = float(config.get(CONF_PV_THRESHOLD))
     weather_ok = inputs.weather is None or inputs.weather in allowed_states
     pv_ok = inputs.pv_power is None or inputs.pv_power > pv_threshold
-    bright = weather_ok and pv_ok
-    gates.append(
-        Gate(
-            "bright",
-            bright,
-            f"weather {inputs.weather!r} allowed={weather_ok}, "
-            f"pv {inputs.pv_power} W > {pv_threshold} W = {pv_ok}",
-        )
+    # Sustained PV outranks the weather condition. A forecast reporting
+    # cloudy while the roof has been making full power for twenty minutes is
+    # wrong about this house, and the inverter is the instrument actually
+    # measuring the light falling on it.
+    bright = (weather_ok and pv_ok) or pv_sustained
+    detail = (
+        f"weather {inputs.weather!r} allowed={weather_ok}, "
+        f"pv {inputs.pv_power} W > {pv_threshold} W = {pv_ok}"
     )
+    if pv_sustained:
+        detail += (
+            f", weather overridden by pv >= {pv_override} W since {pv_high_since:%H:%M}"
+        )
+    gates.append(Gate("bright", bright, detail))
 
     cool_above = float(config.get(CONF_COOL_ABOVE))
     heat_below = float(config.get(CONF_HEAT_BELOW))
@@ -367,6 +399,7 @@ def evaluate(
             storm_latched=storm_latched,
             gate_false_since=None,
             paused_until=state.paused_until,
+            pv_high_since=pv_high_since,
         )
     elif state.active:
         # An episode is running but the gates no longer support it. Hold the
@@ -401,6 +434,7 @@ def evaluate(
             storm_latched=storm_latched,
             gate_false_since=None,
             paused_until=state.paused_until,
+            pv_high_since=pv_high_since,
         )
         return decide(
             Intent.NEUTRAL,
