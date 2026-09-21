@@ -254,6 +254,18 @@
               "windy-variant": "Windig, bewölkt"
             }
           },
+          "bright": {
+            "name": "Hell genug"
+          },
+          "weather_ok": {
+            "name": "Wetterlage erlaubt Handeln"
+          },
+          "pv_override_active": {
+            "name": "PV übersteuert das Wetter"
+          },
+          "pv_override_at": {
+            "name": "PV übersteuert das Wetter ab"
+          },
           "wind_speed": {
             "name": "Windgeschwindigkeit"
           }

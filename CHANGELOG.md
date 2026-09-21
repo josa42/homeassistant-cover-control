@@ -4,6 +4,13 @@
 
 ### Added
 
+- **The debug dashboard says why it is not bright enough.** A Brightness card
+  per cover spells out which half of the gate failed, the weather condition and
+  the PV reading behind it, and counts down the minutes until sustained PV takes
+  over from the weather. The decision sensor carries the same facts as the
+  `bright`, `weather_ok`, `pv_override_active` and `pv_override_at` attributes,
+  so automations and templates can read them too.
+
 - **Covers without a controller are found for you.** An issue under Settings >
   Repairs names any cover that could be controlled but is not set up yet, so a
   newly paired cover does not sit there doing nothing until you notice. It skips

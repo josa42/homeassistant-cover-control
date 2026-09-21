@@ -254,6 +254,18 @@
               "windy-variant": "Windy, cloudy"
             }
           },
+          "bright": {
+            "name": "Bright enough"
+          },
+          "weather_ok": {
+            "name": "Weather condition allows acting"
+          },
+          "pv_override_active": {
+            "name": "PV is overriding the weather"
+          },
+          "pv_override_at": {
+            "name": "PV overrides the weather at"
+          },
           "wind_speed": {
             "name": "Wind speed"
           }

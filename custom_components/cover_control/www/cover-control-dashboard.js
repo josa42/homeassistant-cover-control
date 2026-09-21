@@ -43,6 +43,16 @@ const LABELS = {
     wind: "Wind",
     inputs: "Inputs",
     why: "Why",
+    brightness: "Brightness",
+    brightYes: "Bright enough to act.",
+    brightNo: "Not bright enough to act.",
+    brightUnknown: "Brightness was not reached; an earlier gate decided.",
+    weatherAllowed: "counts as bright",
+    weatherNotAllowed: "does not count as bright",
+    pvOverriding: "PV is high enough to override the weather.",
+    pvOverrideIn: "PV overrides the weather in",
+    pvOverrideMinutes: "min, if it stays this high.",
+    pvBelowOverride: "PV is below the weather override threshold.",
     coversTotal: "Covers configured",
     coversShading: "Shading",
     coversHeating: "Solar heating",
@@ -80,6 +90,16 @@ const LABELS = {
     wind: "Wind",
     inputs: "Eingangswerte",
     why: "Warum",
+    brightness: "Helligkeit",
+    brightYes: "Hell genug zum Handeln.",
+    brightNo: "Nicht hell genug zum Handeln.",
+    brightUnknown: "Helligkeit wurde nicht geprüft; ein früheres Gate hat entschieden.",
+    weatherAllowed: "gilt als hell",
+    weatherNotAllowed: "gilt nicht als hell",
+    pvOverriding: "PV ist hoch genug, um das Wetter zu übersteuern.",
+    pvOverrideIn: "PV übersteuert das Wetter in",
+    pvOverrideMinutes: "Min., wenn sie so hoch bleibt.",
+    pvBelowOverride: "PV liegt unter dem Übersteuerungswert.",
     coversTotal: "Konfigurierte Rollläden",
     coversShading: "Beschattung",
     coversHeating: "Sonnenheizen",
@@ -221,6 +241,44 @@ function inputRows(entity, t) {
   }));
 }
 
+/**
+ * "Not bright enough" in words, with a live countdown to the PV override.
+ *
+ * A markdown card rather than attribute rows because the interesting number,
+ * how much longer PV has to hold, is not stored anywhere: only the moment the
+ * override engages is. Templates using now() re-render every minute, so the
+ * countdown stays honest between the five-minute evaluations.
+ */
+function brightnessCard(entity, t) {
+  const attr = (name) => `state_attr('${entity}', '${name}')`;
+  return {
+    type: "markdown",
+    title: t.brightness,
+    content: [
+      `{% set bright = ${attr("bright")} %}`,
+      `{% set at = ${attr("pv_override_at")} %}`,
+      "{% if bright is none %}",
+      t.brightUnknown,
+      "{% else %}",
+      `**{{ ${"'" + t.brightYes + "' if bright else '" + t.brightNo + "'"} }}**`,
+      "",
+      `- {{ ${attr("weather")} }}:`,
+      `  {{ ${"'" + t.weatherAllowed + "' if " + attr("weather_ok") + " else '" + t.weatherNotAllowed + "'"} }}`,
+      `- {{ ${attr("pv_power")} }} W`,
+      "{% endif %}",
+      "",
+      `{% if ${attr("pv_override_active")} %}`,
+      t.pvOverriding,
+      "{% elif at %}",
+      "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60) | round(0, 'ceil') | int %}",
+      `${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}`,
+      "{% else %}",
+      t.pvBelowOverride,
+      "{% endif %}",
+    ].join("\n"),
+  };
+}
+
 function statusRows(entity, t) {
   return [
     ["total", t.coversTotal],
@@ -337,6 +395,7 @@ function debugView(covers, t) {
         title: t.inputs,
         entities: inputRows(decision, t),
       },
+      brightnessCard(decision, t),
       {
         type: "history-graph",
         hours_to_show: 24,

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import Any
 
 from . import geometry
 from .const import (
@@ -118,6 +119,7 @@ def evaluate(
 ) -> tuple[Decision, EpisodeState]:
     """Evaluate one cover and return its decision plus the new state."""
     gates: list[Gate] = []
+    brightness: dict[str, Any] = {}
     raw_inputs = {
         "sun_elevation": inputs.sun_elevation,
         "sun_azimuth": inputs.sun_azimuth,
@@ -157,6 +159,7 @@ def evaluate(
             gates=gates,
             geometry=geom or {},
             settings=config.snapshot(),
+            brightness=brightness,
         )
         return decision, (new_state if new_state is not None else state)
 
@@ -176,6 +179,14 @@ def evaluate(
         pv_high_since is not None and inputs.now - pv_high_since >= PV_OVERRIDE_SUSTAIN
     )
     state = replace(state, pv_high_since=pv_high_since)
+    brightness["pv_override_active"] = pv_sustained
+    # When the override takes over, rather than how long it has been
+    # waiting: the question people actually ask is how much longer.
+    brightness["pv_override_at"] = (
+        (pv_high_since + PV_OVERRIDE_SUSTAIN).isoformat()
+        if pv_high_since is not None
+        else None
+    )
 
     # --- availability and enable switches ---------------------------------
     if not inputs.cover_available:
@@ -345,6 +356,8 @@ def evaluate(
             f", weather overridden by pv >= {pv_override} W since {pv_high_since:%H:%M}"
         )
     gates.append(Gate("bright", bright, detail))
+    brightness["bright"] = bright
+    brightness["weather_ok"] = weather_ok
 
     cool_above = float(config.get(CONF_COOL_ABOVE))
     heat_below = float(config.get(CONF_HEAT_BELOW))

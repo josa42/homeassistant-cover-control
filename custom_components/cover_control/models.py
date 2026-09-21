@@ -95,6 +95,9 @@ class Decision:
     gates: list[Gate] = field(default_factory=list)
     geometry: dict[str, Any] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
+    #: Why the brightness gate concluded what it did. Empty when an earlier
+    #: gate returned before brightness was ever evaluated.
+    brightness: dict[str, Any] = field(default_factory=dict)
 
     def as_attributes(self) -> dict[str, Any]:
         """Compact form for the sensor.
@@ -119,6 +122,14 @@ class Decision:
             "indoor_temp": self.inputs.get("indoor_temp"),
             "pv_power": self.inputs.get("pv_power"),
             "weather": self.inputs.get("weather"),
+            # "Not bright enough" is the reason people ask about most, and
+            # the raw weather and PV readings alone do not answer it: what
+            # is missing is whether each one passed, and when the PV
+            # override takes over. All four are cheap for the recorder.
+            "bright": self.brightness.get("bright"),
+            "weather_ok": self.brightness.get("weather_ok"),
+            "pv_override_active": self.brightness.get("pv_override_active"),
+            "pv_override_at": self.brightness.get("pv_override_at"),
             "wind_speed": self.inputs.get("wind_speed"),
         }
 
@@ -140,6 +151,7 @@ class Decision:
             "inputs": self.inputs,
             "gates": [gate.as_dict() for gate in self.gates],
             "geometry": self.geometry,
+            "brightness": self.brightness,
             "settings": self.settings,
         }
 

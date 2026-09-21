@@ -23,6 +23,7 @@ from custom_components.cover_control.const import (
     CONF_WIND_RELEASE,
     CONF_WIND_THRESHOLD,
     CONF_WINDOW_HEIGHT,
+    PV_OVERRIDE_SUSTAIN,
     CoverType,
     Intent,
     Reason,
@@ -347,6 +348,61 @@ def test_a_zero_override_threshold_switches_the_override_off() -> None:
     )
     assert state.pv_high_since is None
     assert decision.reason is Reason.NOT_BRIGHT
+
+
+# --- what the sensor reports about brightness --------------------------------
+
+
+def test_the_attributes_explain_a_passing_brightness_gate() -> None:
+    decision, _ = run()
+    attributes = decision.as_attributes()
+    assert attributes["bright"] is True
+    assert attributes["weather_ok"] is True
+
+
+def test_the_attributes_name_the_half_that_failed() -> None:
+    """Raw weather and pv readings alone never said which one blocked it."""
+    decision, _ = run(weather="cloudy")
+    attributes = decision.as_attributes()
+    assert attributes["bright"] is False
+    assert attributes["weather_ok"] is False
+
+
+def test_the_attributes_carry_the_moment_the_override_engages() -> None:
+    decision, _ = run(weather="cloudy", pv_power=4000.0)
+    attributes = decision.as_attributes()
+    assert attributes["pv_override_active"] is False
+    assert attributes["pv_override_at"] == (NOW + PV_OVERRIDE_SUSTAIN).isoformat()
+
+
+def test_the_attributes_report_an_engaged_override() -> None:
+    sustained = EpisodeState(pv_high_since=NOW - timedelta(minutes=25))
+    decision, _ = run(sustained, weather="cloudy", pv_power=4000.0)
+    attributes = decision.as_attributes()
+    assert attributes["pv_override_active"] is True
+    assert attributes["bright"] is True
+
+
+def test_there_is_no_override_moment_while_pv_is_low() -> None:
+    decision, _ = run(pv_power=100.0)
+    assert decision.as_attributes()["pv_override_at"] is None
+
+
+def test_brightness_is_still_reported_with_the_sun_off_the_window() -> None:
+    """That gate does not return early, so the sky is still described."""
+    decision, _ = run(sun_azimuth=20.0, pv_power=4000.0)
+    attributes = decision.as_attributes()
+    assert decision.reason is Reason.SUN_NOT_ON_WINDOW
+    assert attributes["bright"] is True
+    assert attributes["pv_override_at"] == (NOW + PV_OVERRIDE_SUSTAIN).isoformat()
+
+
+def test_brightness_is_unevaluated_when_an_earlier_gate_returns() -> None:
+    """An unavailable cover is decided before the sky is ever looked at."""
+    decision, _ = run(cover_available=False)
+    attributes = decision.as_attributes()
+    assert attributes["bright"] is None
+    assert attributes["weather_ok"] is None
 
 
 def test_sustained_pv_does_not_rescue_a_cold_day() -> None:

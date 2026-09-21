@@ -84,6 +84,18 @@ just disappears. That position is the seating point.
 
 <br><br>
 
+## The debug dashboard
+
+The generated dashboard's debug view lays out the decision record per cover: the
+human sentence, the decision, the inputs, and a **Brightness** card that says in
+words why the brightness gate concluded what it did. When PV is above the
+override threshold but has not held there long enough yet, that card counts down
+the minutes until it takes over. The countdown is rendered from
+`pv_override_at`, so it keeps ticking between the five-minute evaluations rather
+than going stale.
+
+<br><br>
+
 ## Covers without a controller
 
 Every evaluation also asks which covers could be controlled but are not. Any it
@@ -116,7 +128,12 @@ is worth:
 - **`sensor.<cover>_decision`** carries the current intent as its state, with a
   small flat set of attributes: reason code, target position and tilt, the key
   sensor readings, and what blocked it. It stays small on purpose, because the
-  recorder writes attributes on every state change.
+  recorder writes attributes on every state change. Brightness is the one gate
+  broken out into attributes of its own, because "not bright enough" is the
+  reason people ask about most and the raw weather and PV readings do not answer
+  it: `bright`, `weather_ok`, `pv_override_active` and `pv_override_at`, the
+  moment sustained PV takes over from the weather. All four are `None` when an
+  earlier gate decided before brightness was ever evaluated.
 - **Diagnostics** (download from the integration page) carry the full trace of
   the last 50 decisions per cover: every input, every gate with its verdict and
   detail, the geometry intermediates, and every effective setting with its
