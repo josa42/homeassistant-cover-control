@@ -19,6 +19,13 @@
   size of the window. Covers you never want controlled can be dismissed from the
   issue and are not offered again.
 
+### Changed
+
+- **Releasing verifies the dashboard strategy version bump.** It was already
+  bumped, but nothing checked that it worked. A silent failure there ships a
+  release whose dashboard keeps serving the strategy browsers cached before the
+  upgrade, which looks like the new dashboard code simply not working.
+
 ## 1.4.0 - 2026-09-20
 
 ### Added

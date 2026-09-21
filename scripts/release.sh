@@ -127,6 +127,16 @@ else
     sed -i "s/^STRATEGY_VERSION = \"[^\"]*\"/STRATEGY_VERSION = \"${VERSION}\"/" "$INIT_FILE"
 fi
 
+# Verified like the manifest is: a silent no-op here ships a release whose
+# dashboard keeps serving the strategy browsers cached before the upgrade,
+# which looks like the new dashboard code simply not working.
+NEW_STRATEGY_VERSION=$(grep -o '^STRATEGY_VERSION = "[^"]*"' "$INIT_FILE" | cut -d'"' -f2)
+if [ "$NEW_STRATEGY_VERSION" != "$VERSION" ]; then
+    print_error "Failed to update STRATEGY_VERSION in ${INIT_FILE}"
+    exit 1
+fi
+print_info "${INIT_FILE} → STRATEGY_VERSION ${VERSION}"
+
 RELEASE_DATE=$(date +%Y-%m-%d)
 print_info "Dating the Unreleased section in ${CHANGELOG_FILE}..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
