@@ -4,7 +4,7 @@
   "after_dependencies": ["frontend", "http", "sun", "weather"],
   "codeowners": ["@josa42"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["repairs"],
   "documentation": "https://github.com/josa42/homeassistant-cover-control",
   "integration_type": "hub",
   "iot_class": "calculated",

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Covers without a controller are found for you.** An issue under Settings >
+  Repairs names any cover that could be controlled but is not set up yet, so a
+  newly paired cover does not sit there doing nothing until you notice. It skips
+  covers that cannot take a position, along with garage doors, gates, doors and
+  dampers, and it never adds a cover by itself: that needs the orientation and
+  size of the window. Covers you never want controlled can be dismissed from the
+  issue and are not offered again.
+
 ## 1.4.0 - 2026-09-20
 
 ### Added

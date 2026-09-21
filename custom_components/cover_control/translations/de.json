@@ -296,6 +296,25 @@
       }
     }
   },
+  "issues": {
+    "uncontrolled_covers": {
+      "title": "{count} Rollläden haben noch keine Steuerung",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Rollläden ohne Steuerung",
+            "description": "Diese Rollläden könnten gesteuert werden, sind aber noch nicht eingerichtet:\n\n{covers}\n\nZum Steuern auf der Cover-Control-Seite hinzufügen: **Rollladen hinzufügen**. Jeder braucht Ausrichtung und Maße seines Fensters, deshalb geht das nicht automatisch.\n\nWähle die aus, die nie gesteuert werden sollen; sie werden dann nicht mehr aufgeführt. Bleibt die Auswahl leer, ändert sich nichts.",
+            "data": {
+              "ignored_covers": "Nicht mehr nach diesen Rollläden fragen"
+            }
+          }
+        },
+        "abort": {
+          "no_config_entry": "Cover Control ist nicht eingerichtet."
+        }
+      }
+    }
+  },
   "selector": {
     "cover_type": {
       "options": {

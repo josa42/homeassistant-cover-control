@@ -84,6 +84,29 @@ just disappears. That position is the seating point.
 
 <br><br>
 
+## Covers without a controller
+
+Every evaluation also asks which covers could be controlled but are not. Any it
+finds are reported as one issue under **Settings** → **Repairs**.
+
+A cover counts as a candidate when it is not already controlled, not hidden or
+disabled, accepts a position, and is not a garage door, gate, door or damper. The
+position requirement is not pedantry: without it the engine can only ever report
+`no_position_support`, and storm protection has nothing to send either, so
+offering such a cover would be offering nothing.
+
+The issue never adds a cover by itself. A cover needs the orientation and size
+of its window, and nothing in Home Assistant knows which way a window faces, so
+a controller created from defaults would compute confident, wrong positions and
+then drive a real cover to them. The issue names what is missing and leaves the
+adding to you.
+
+Covers you never want controlled can be dismissed from the issue. They are
+remembered on the hub and never listed again, and editing the hub settings does
+not bring them back.
+
+<br><br>
+
 ## Why did it do that?
 
 Every evaluation produces one decision record. Nothing moves a cover without

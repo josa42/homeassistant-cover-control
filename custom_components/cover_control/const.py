@@ -11,6 +11,9 @@ SUBENTRY_TYPE_COVER = "cover"
 
 EVENT_DECISION = f"{DOMAIN}_decision"
 
+#: Repair issue raised when covers exist that no controller has claimed.
+ISSUE_UNCONTROLLED_COVERS = "uncontrolled_covers"
+
 #: How often every cover is re-evaluated even if nothing changed.
 TICK_INTERVAL = timedelta(minutes=5)
 
@@ -123,6 +126,8 @@ CONF_WEATHER_STATES = "allowed_weather_states"
 CONF_WIND_THRESHOLD = "wind_threshold"
 CONF_WIND_RELEASE = "wind_release"
 CONF_NOTIFY_TARGET = "notify_target"
+#: Covers the user has told the discovery issue to stop asking about.
+CONF_IGNORED_COVERS = "ignored_covers"
 CONF_DRY_RUN = "dry_run"
 
 # --- Cover configuration keys ----------------------------------------------

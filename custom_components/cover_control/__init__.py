@@ -12,9 +12,10 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
+from .const import DOMAIN, ISSUE_UNCONTROLLED_COVERS
 from .coordinator import CoverControlCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -96,4 +97,7 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: CoverControlConfigEntry
 ) -> bool:
     """Unload a config entry."""
+    # A reload puts it straight back on the next refresh. Removing the
+    # integration for good must not leave the issue behind, though.
+    ir.async_delete_issue(hass, DOMAIN, ISSUE_UNCONTROLLED_COVERS)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

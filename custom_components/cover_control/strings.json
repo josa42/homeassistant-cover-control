@@ -296,6 +296,25 @@
       }
     }
   },
+  "issues": {
+    "uncontrolled_covers": {
+      "title": "{count} covers have no controller yet",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Covers without a controller",
+            "description": "These covers could be controlled but are not set up yet:\n\n{covers}\n\nTo control one, add it on the Cover Control integration page: **Add cover**. Each one needs the orientation and size of its window, which is why it cannot be set up automatically.\n\nPick any you never want controlled and they will not be listed again. Leave the selection empty and nothing changes.",
+            "data": {
+              "ignored_covers": "Stop asking about these covers"
+            }
+          }
+        },
+        "abort": {
+          "no_config_entry": "Cover Control is not set up."
+        }
+      }
+    }
+  },
   "selector": {
     "cover_type": {
       "options": {

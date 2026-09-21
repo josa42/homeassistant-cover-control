@@ -30,6 +30,7 @@ from .const import (
     CONF_FOV_LEFT,
     CONF_FOV_RIGHT,
     CONF_HEAT_BELOW,
+    CONF_IGNORED_COVERS,
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
     CONF_INDOOR_TEMP,
@@ -210,7 +211,13 @@ class CoverControlOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            # Options are replaced wholesale, and the ignore list is not on
+            # this form, so it has to be carried across by hand.
+            ignored = self.config_entry.options.get(CONF_IGNORED_COVERS)
+            data = dict(user_input)
+            if ignored:
+                data[CONF_IGNORED_COVERS] = ignored
+            return self.async_create_entry(data=data)
         current = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(step_id="init", data_schema=_hub_schema(current))
 

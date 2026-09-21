@@ -37,6 +37,13 @@ Shared settings live on the hub and every cover inherits them. Any of them can
 be overridden per cover, and each decision records both the value it used and
 which level it came from.
 
+Covers you have not set up are noticed on their own. If a cover could be
+controlled but has no controller yet, Cover Control raises an issue under
+**Settings** → **Repairs** naming it. It cannot add the cover for you, because
+no part of Home Assistant knows which way a window faces, so the issue points
+back at **Add a cover**. Covers you never want controlled can be dismissed from
+the issue, and are not offered again.
+
 <br><br>
 
 ## Dry run and notifications

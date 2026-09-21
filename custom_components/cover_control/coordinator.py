@@ -43,6 +43,7 @@ from .const import (
     TICK_INTERVAL,
     Intent,
 )
+from .discovery import async_refresh_issue
 from .engine import EpisodeState, Inputs, evaluate, released_from_pause
 from .models import Decision, EffectiveConfig
 
@@ -374,6 +375,9 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 changes.append((runtime, decision))
         # One notification for the whole evaluation, however many covers changed.
         await self._async_notify(changes)
+        # Here rather than at setup, so a cover paired after startup is
+        # noticed on the next tick instead of at the next restart.
+        async_refresh_issue(self.hass, self.entry)
         return decisions
 
     @staticmethod
