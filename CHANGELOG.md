@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The debug view is shorter and reads in the order you ask the questions in.**
+  The readings a decision was made from now sit above the decision itself. The
+  target, the slat angle and whether the cover actually moved were four rows
+  that say one thing, so they are one sentence under the explanation now, and
+  what is left below it is the reasoning behind that sentence.
+
 ## 1.6.0 - 2026-09-22
 
 ### Fixed

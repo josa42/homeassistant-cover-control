@@ -27,11 +27,10 @@ const LABELS = {
     ].join("\n"),
     decision: "Decision",
     reason: "Reason",
-    targetPosition: "Target position",
-    targetTilt: "Target tilt",
-    wouldMove: "Would move the cover",
-    acted: "Moved the cover",
-    dryRun: "Dry run",
+    target: "Target",
+    didMove: "moved it",
+    wouldMoveNow: "would move it",
+    nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
     episode: "Episode running",
     sunOnWindow: "Sun on the window",
@@ -75,11 +74,10 @@ const LABELS = {
     ].join("\n"),
     decision: "Entscheidung",
     reason: "Grund",
-    targetPosition: "Zielposition",
-    targetTilt: "Ziel-Lamellenwinkel",
-    wouldMove: "Würde den Rollladen bewegen",
-    acted: "Rollladen bewegt",
-    dryRun: "Testlauf",
+    target: "Ziel",
+    didMove: "bewegt",
+    wouldMoveNow: "würde bewegen",
+    nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
     episode: "Episode läuft",
     sunOnWindow: "Sonne auf dem Fenster",
@@ -205,14 +203,15 @@ function collect(hass) {
   return { hub, covers };
 }
 
+/**
+ * What the decision concluded, minus everything the summary above already says.
+ *
+ * The target and what became of it are four rows that read as one sentence, so
+ * they live in the summary card and this is left as the reasoning behind it.
+ */
 function attributeRows(entity, t) {
   const rows = [
     ["reason_code", t.reason],
-    ["target_position", t.targetPosition],
-    ["target_tilt", t.targetTilt],
-    ["would_move", t.wouldMove],
-    ["acted", t.acted],
-    ["dry_run", t.dryRun],
     ["blocked_by", t.blockedBy],
     ["episode_active", t.episode],
     ["sun_on_window", t.sunOnWindow],
@@ -245,6 +244,10 @@ function inputRows(entity, t) {
   }));
 }
 
+function attrOf(entity, name) {
+  return `state_attr('${entity}', '${name}')`;
+}
+
 /**
  * "Not bright enough" in words, with a live countdown to the PV override.
  *
@@ -254,7 +257,7 @@ function inputRows(entity, t) {
  * countdown stays honest between the five-minute evaluations.
  */
 function brightnessCard(entity, t) {
-  const attr = (name) => `state_attr('${entity}', '${name}')`;
+  const attr = (name) => attrOf(entity, name);
   return {
     type: "markdown",
     title: t.brightness,
@@ -382,22 +385,34 @@ function debugView(covers, t) {
           "",
           // Rendered live, so a cover switched into dry run says so without
           // the dashboard having to be regenerated.
-          `{% if state_attr('${decision}', 'dry_run') %}`,
+          `{% if ${attrOf(decision, "dry_run")} %}`,
           t.dryRunNotice,
           "{% endif %}",
           "",
-          `{{ state_attr('${decision}', 'message') }}`,
+          `{{ ${attrOf(decision, "message")} }}`,
+          // The target and what became of it: four rows of their own before,
+          // and one sentence that happens to be the answer people came for.
+          `{% set p = ${attrOf(decision, "target_position")} %}`,
+          `{% set s = ${attrOf(decision, "target_tilt")} %}`,
+          "{% if p is not none %}",
+          "",
+          `**${t.target}:** {{ p }} %`
+            + `{% if s is not none %} · {{ s }} °{% endif %} — `
+            + `{% if ${attrOf(decision, "acted")} %}${t.didMove}`
+            + `{% elif ${attrOf(decision, "would_move")} %}${t.wouldMoveNow}`
+            + `{% else %}${t.nothingToDo}{% endif %}`,
+          "{% endif %}",
         ].join("\n"),
-      },
-      {
-        type: "entities",
-        title: t.decision,
-        entities: attributeRows(decision, t),
       },
       {
         type: "entities",
         title: t.inputs,
         entities: inputRows(decision, t),
+      },
+      {
+        type: "entities",
+        title: t.decision,
+        entities: attributeRows(decision, t),
       },
       brightnessCard(decision, t),
       {
