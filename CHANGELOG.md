@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Covers open again after the sun leaves the window.** Opening a cover takes
+  two commands, and the second only came due once the episode had already
+  ended, when the cover was neutral and had nothing left to ask for. So the
+  open was a single attempt, and a cover that missed it stayed shut for the
+  rest of the day. What a decision asks for is now queued against the cover and
+  outlives the decision that filled it.
+
+- **A command waits for the one before it to finish.** 1.5.1 stopped position
+  and tilt going out together by sending one per evaluation, which left the
+  ordering to whatever happened to be evaluated next. Commands are now held in
+  a queue per cover and released one at a time, each waiting until the cover
+  reports it arrived, and nothing is sent into a cover whose motor is running,
+  whoever started it. A command the cover has not carried out within 90 seconds
+  is given up on and the destination is worked out again from where the cover
+  actually is, rather than the rest of the queue being sent to a position it
+  never reached.
+
+- **Storm protection no longer queues behind a shading run.** It cancels
+  whatever is in progress, which for hardware protection is the point rather
+  than the risk.
+
 ## 1.5.1 - 2026-09-22
 
 ### Fixed

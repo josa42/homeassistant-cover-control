@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
@@ -60,6 +60,15 @@ def _is_travelling(state: State | None) -> bool:
     return state is not None and state.state in (STATE_OPENING, STATE_CLOSING)
 
 
+@dataclass(frozen=True, slots=True)
+class Command:
+    """One service call to a cover, and what the cover must read back when done."""
+
+    service: str
+    field: str
+    value: int
+
+
 class CoverRuntime:
     """Per-cover runtime state that must survive between evaluations."""
 
@@ -78,9 +87,16 @@ class CoverRuntime:
         self._contexts: dict[str, datetime] = {}
         self.expected_position: int | None = None
         self.last_command: datetime | None = None
-        #: The service and value last sent, so the same one is not repeated
-        #: while the cover is still supposed to be carrying it out.
-        self.last_sent: tuple[str, int] | None = None
+        #: Commands still to send, the one the cover is working on, and when it
+        #: went out. Only ever one is outstanding: a cover that is still
+        #: travelling reads the next command as a new destination and abandons
+        #: the run, so each command waits for the one before it to finish.
+        self.queue: deque[Command] = deque()
+        self.in_flight: Command | None = None
+        self.sent_at: datetime | None = None
+        #: The target the queue is working towards, so a decision that still
+        #: wants the same thing does not restart it.
+        self.queued_for: tuple[int | None, int | None] | None = None
 
     @property
     def is_paused(self) -> bool:
@@ -103,6 +119,25 @@ class CoverRuntime:
         self._contexts[context.id] = now
         cutoff = now - CONTEXT_TTL
         self._contexts = {k: v for k, v in self._contexts.items() if v > cutoff}
+
+    @property
+    def is_idle(self) -> bool:
+        """Whether the cover has been sent everything the last decision wanted."""
+        return not self.queue and self.in_flight is None
+
+    def load_queue(
+        self, commands: list[Command], destination: tuple[int | None, int | None]
+    ) -> None:
+        """Start on a new destination, dropping whatever was still pending."""
+        self.queue = deque(commands)
+        self.queued_for = destination
+
+    def clear_queue(self) -> None:
+        """Stop sending: the cover is not ours to move any more."""
+        self.queue.clear()
+        self.in_flight = None
+        self.sent_at = None
+        self.queued_for = None
 
     def is_ours(self, context: Context) -> bool:
         return context.id in self._contexts or (
@@ -459,53 +494,70 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             current is None or abs(target - current) >= MIN_MOVEMENT_DELTA
         )
 
-    def _next_command(
-        self, decision: Decision, inputs: Inputs
-    ) -> tuple[str, str, int] | None:
-        """The single command that brings this cover closest to its decision.
+    def _commands_for(self, decision: Decision, inputs: Inputs) -> list[Command]:
+        """The commands that carry out a decision, in the order they must be sent.
 
-        Position and tilt are never sent together. A cover that is still
-        travelling reads a tilt command as a new destination, abandons the run
-        and settles back where it started, so the slats are left until the
-        cover has arrived and are set on a later evaluation.
+        Position first: the slats hang off where the cover is, and a tilt sent
+        into a moving cover cancels the run it is in the middle of.
         """
+        commands = []
         # Small corrections are not worth a motor start, but protection always is.
         if decision.intent is Intent.STORM or self._worth_moving(
             decision.target_position, inputs.current_position
         ):
-            return "set_cover_position", "position", decision.target_position
-        if (
-            inputs.supports_tilt
-            and not inputs.is_moving
-            and self._worth_moving(decision.target_tilt, inputs.current_tilt)
+            commands.append(
+                Command("set_cover_position", "position", decision.target_position)
+            )
+        if inputs.supports_tilt and self._worth_moving(
+            decision.target_tilt, inputs.current_tilt
         ):
-            return "set_cover_tilt_position", "tilt_position", decision.target_tilt
-        return None
+            commands.append(
+                Command("set_cover_tilt_position", "tilt_position", decision.target_tilt)
+            )
+        return commands
+
+    @staticmethod
+    def _command_arrived(runtime: CoverRuntime, inputs: Inputs) -> bool:
+        """Whether the cover reads back what the command in flight asked for."""
+        command = runtime.in_flight
+        if command is None:
+            return True
+        if inputs.is_moving:
+            return False
+        reached = (
+            inputs.current_position
+            if command.field == "position"
+            else inputs.current_tilt
+        )
+        return reached is not None and abs(reached - command.value) <= MIN_MOVEMENT_DELTA
 
     async def _apply(
         self, runtime: CoverRuntime, decision: Decision, inputs: Inputs
     ) -> Decision:
-        """Send the command a decision asks for, if it is worth sending."""
-        dry_run = runtime.dry_run
-        if decision.target_position is None:
-            return replace(decision, dry_run=dry_run)
+        """Queue what a decision asks for and send the next command that is due.
 
-        command = self._next_command(decision, inputs)
-        if command is None:
-            return replace(
-                decision,
-                would_move=False,
-                acted=False,
-                dry_run=dry_run,
-                message=f"{decision.message} Already within "
-                f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
-            )
-        service, field, value = command
+        The queue outlives the decision that filled it. Opening a cover at the
+        end of an episode takes two commands, and by the time the second one is
+        due the episode is over and the decisions carry no target at all.
+        """
+        dry_run = runtime.dry_run
+        now = dt_util.utcnow()
 
         if dry_run:
             # Everything above still ran, so the decision is the real one. Only
-            # the command is withheld, and no expected position is recorded
-            # because the cover was never asked to go anywhere.
+            # the commands are withheld, and nothing is queued or recorded,
+            # because the cover is never asked to go anywhere.
+            if decision.target_position is None:
+                return replace(decision, dry_run=True)
+            if not self._commands_for(decision, inputs):
+                return replace(
+                    decision,
+                    would_move=False,
+                    acted=False,
+                    dry_run=True,
+                    message=f"{decision.message} Already within "
+                    f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
+                )
             return replace(
                 decision,
                 would_move=True,
@@ -514,38 +566,99 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 message=f"{decision.message} No command sent.",
             )
 
-        now = dt_util.utcnow()
-        if (
-            runtime.last_sent == (service, value)
-            and runtime.last_command is not None
-            and now - runtime.last_command < SETTLE_TIME
+        if decision.target_position is None and decision.blocked_by is not None:
+            # Paused, overridden, a window opened: whatever is still queued was
+            # decided under conditions that no longer hold.
+            runtime.clear_queue()
+            return replace(decision, dry_run=False)
+
+        is_storm = decision.intent is Intent.STORM
+        if is_storm and runtime.queued_for != (
+            decision.target_position,
+            decision.target_tilt,
         ):
-            # Repeating a command the cover has not had time to carry out
-            # achieves nothing, and a cover that never reports the position we
-            # asked for would otherwise be re-commanded on every state change
-            # it causes, forever.
+            # Protecting the hardware does not wait its turn behind a shading
+            # run, and cancelling that run is the point rather than the risk.
+            runtime.clear_queue()
+
+        if runtime.in_flight is not None:
+            command = runtime.in_flight
+            timed_out = (
+                runtime.sent_at is not None and now - runtime.sent_at >= SETTLE_TIME
+            )
+            if self._command_arrived(runtime, inputs):
+                runtime.in_flight = None
+            elif timed_out:
+                # Long enough that the cover is not going to carry it out.
+                # Whatever was queued behind it was worked out from a position
+                # the cover never reached, so the destination is re-decided
+                # from where it actually is rather than continued blindly.
+                _LOGGER.warning(
+                    "%s did not reach %s %s within %s; starting over",
+                    runtime.cover_entity,
+                    command.field,
+                    command.value,
+                    SETTLE_TIME,
+                )
+                runtime.clear_queue()
+            else:
+                return replace(
+                    decision,
+                    would_move=True,
+                    acted=False,
+                    blocked_by="awaiting_travel",
+                    message=f"{decision.message} Waiting for the cover to finish "
+                    "the command before this one.",
+                )
+
+        if inputs.is_moving and not is_storm:
+            # Someone else is driving it. Commanding it now would cancel their
+            # run the same way a second command of ours would.
             return replace(
                 decision,
                 would_move=True,
                 acted=False,
                 blocked_by="awaiting_travel",
-                message=f"{decision.message} The same command is already out, "
-                "waiting for the cover to get there.",
+                message=f"{decision.message} Waiting for the cover to stop moving.",
             )
 
+        # Only now that the cover is idle is what it still needs knowable: a
+        # command that timed out leaves the cover short of where it was sent.
+        if decision.target_position is not None:
+            destination = (decision.target_position, decision.target_tilt)
+            if destination != runtime.queued_for or runtime.is_idle:
+                runtime.load_queue(self._commands_for(decision, inputs), destination)
+
+        if not runtime.queue:
+            if decision.target_position is None:
+                return replace(decision, dry_run=False)
+            return replace(
+                decision,
+                would_move=False,
+                acted=False,
+                dry_run=False,
+                message=f"{decision.message} Already within "
+                f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
+            )
+
+        command = runtime.queue.popleft()
         context = Context()
         runtime.remember_context(context)
-        # Always the position, whichever command is going out: this is what a
-        # later position report is judged against.
-        runtime.expected_position = decision.target_position
+        # The position the queue is driving towards, which is what a later
+        # position report is judged against. The current decision may have no
+        # target of its own by now.
+        runtime.expected_position = (
+            runtime.queued_for[0] if runtime.queued_for else None
+        )
         runtime.last_command = now
-        runtime.last_sent = (service, value)
+        runtime.in_flight = command
+        runtime.sent_at = now
 
         try:
             await self.hass.services.async_call(
                 "cover",
-                service,
-                {ATTR_ENTITY_ID: runtime.cover_entity, field: value},
+                command.service,
+                {ATTR_ENTITY_ID: runtime.cover_entity, command.field: command.value},
                 blocking=False,
                 context=context,
             )
@@ -553,10 +666,14 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             # One cover refusing a command must not take down the whole
             # integration, and the reason has to end up in the record.
             _LOGGER.warning(
-                "Could not send %s=%s to %s: %s", field, value, runtime.cover_entity, err
+                "Could not send %s %s to %s: %s",
+                command.field,
+                command.value,
+                runtime.cover_entity,
+                err,
             )
+            runtime.clear_queue()
             runtime.expected_position = None
-            runtime.last_sent = None
             return replace(
                 decision,
                 would_move=True,

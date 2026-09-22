@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.cover_control.const import SETTLE_TIME
+from custom_components.cover_control.const import GATE_DEBOUNCE, SETTLE_TIME
 
 from .conftest import COVER
 
@@ -303,6 +303,9 @@ async def test_the_command_is_retried_once_the_cover_has_had_its_time(
 
     assert len(cover_calls["position"]) == 2
     assert cover_calls["position"][-1].data["position"] == 50
+    assert not cover_calls["tilt"], (
+        "the slats were set for a position the cover never reached"
+    )
 
 
 async def test_nothing_is_sent_into_a_cover_that_is_still_moving(
@@ -346,3 +349,98 @@ async def test_a_travelling_cover_does_not_ask_for_an_evaluation(
 
     await report(hass, "open", 90, 100, Context())
     assert len(refreshes) == 1, "a settled cover must be re-evaluated"
+
+
+async def test_the_next_command_waits_for_the_cover_to_stop(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """Reaching the position is not the same as being done with the run."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    assert len(cover_calls["position"]) == 1
+
+    # The reported position is already the target, but the motor is still going.
+    await report(hass, "opening", 50, 100, ours)
+    await entry.runtime_data.async_refresh()
+    assert not cover_calls["tilt"], "commanded a cover that was still moving"
+
+    await report(hass, "open", 50, 100, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
+
+
+async def test_the_open_that_ends_an_episode_finishes_after_the_episode(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    set_scene,
+    setup_entry,
+    cover_calls,
+    freezer,
+) -> None:
+    """The decisions that follow the end of an episode carry no target at all.
+
+    Opening a cover takes two commands, and by the time the second one is due
+    the cover is neutral and has nothing left to ask for. A cover left shut for
+    the rest of the day is what that used to cost.
+    """
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 50, 45, ours)  # shaded and settled
+    await entry.runtime_data.async_refresh()
+
+    # The sun leaves the window and the episode debounces, then ends.
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+
+    decision = hass.states.get("sensor.raffstore_decision")
+    assert decision.attributes["reason_code"] == "episode_ended"
+    assert cover_calls["position"][-1].data["position"] == 100
+
+    # It opens, and only then is the second half of that open due.
+    await report(hass, "open", 100, 45, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert hass.states.get("sensor.raffstore_decision").attributes["target_position"] is None
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 100
+
+
+async def test_a_cover_taken_over_by_hand_stops_being_driven(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """Whatever is still queued was decided under conditions that no longer hold."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    assert len(cover_calls["position"]) == 1
+
+    await entry.runtime_data.async_pause(runtime(entry).subentry_id)
+    await hass.async_block_till_done()
+
+    await report(hass, "open", 50, 100, ours)  # it arrives; the slats are not due
+    await entry.runtime_data.async_refresh()
+
+    assert not cover_calls["tilt"]
+    assert runtime(entry).is_idle
+
+
+async def test_a_storm_does_not_wait_behind_a_shading_run(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """Protecting the hardware is the one thing worth cancelling a run for."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    assert cover_calls["position"][-1].data["position"] == 50
+
+    await report(hass, "closing", 80, 100, ours)  # still on its way down
+    set_scene(position=80, wind=55.0)
+    await entry.runtime_data.async_refresh()
+
+    assert cover_calls["position"][-1].data["position"] == 100
+    assert hass.states.get("sensor.raffstore_decision").state == "storm"
