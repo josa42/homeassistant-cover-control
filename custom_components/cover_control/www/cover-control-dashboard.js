@@ -32,27 +32,23 @@ const LABELS = {
     wouldMoveNow: "would move it",
     nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
-    episode: "Episode running",
-    sunOnWindow: "Sun on the window",
-    profileAngle: "Angle of the sun on the window",
-    penetration: "Sun reaches into the room",
-    outdoor: "Outdoor temperature",
-    indoor: "Indoor temperature",
-    pv: "PV power",
-    weather: "Weather",
-    wind: "Wind",
-    inputs: "Inputs",
-    why: "Why",
+    sun: "Sun",
+    notOnThisWindow: "not on this window",
+    intoRoom: "into the room",
+    readings: "Readings",
+    outIn: "out/in",
+    episodeLabel: "Episode",
+    episodeRunning: "running",
+    episodeIdle: "none",
     brightness: "Brightness",
-    brightYes: "Bright enough to act.",
-    brightNo: "Not bright enough to act.",
-    brightUnknown: "Brightness was not reached; an earlier gate decided.",
+    brightYes: "bright enough",
+    brightNo: "not bright enough",
+    brightUnknown: "not reached, an earlier gate decided",
     weatherAllowed: "counts as bright",
     weatherNotAllowed: "does not count as bright",
-    pvOverriding: "PV is high enough to override the weather.",
+    pvOverriding: "PV overrides the weather",
     pvOverrideIn: "PV overrides the weather in",
     pvOverrideMinutes: "min, if it stays this high.",
-    pvBelowOverride: "PV is below the weather override threshold.",
     coversTotal: "Covers configured",
     coversShading: "Shading",
     coversHeating: "Solar heating",
@@ -79,27 +75,23 @@ const LABELS = {
     wouldMoveNow: "würde bewegen",
     nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
-    episode: "Episode läuft",
-    sunOnWindow: "Sonne auf dem Fenster",
-    profileAngle: "Winkel der Sonne auf dem Fenster",
-    penetration: "Sonneneinfall in den Raum",
-    outdoor: "Außentemperatur",
-    indoor: "Innentemperatur",
-    pv: "PV-Leistung",
-    weather: "Wetter",
-    wind: "Wind",
-    inputs: "Eingangswerte",
-    why: "Warum",
+    sun: "Sonne",
+    notOnThisWindow: "nicht auf diesem Fenster",
+    intoRoom: "in den Raum",
+    readings: "Werte",
+    outIn: "außen/innen",
+    episodeLabel: "Episode",
+    episodeRunning: "läuft",
+    episodeIdle: "keine",
     brightness: "Helligkeit",
-    brightYes: "Hell genug zum Handeln.",
-    brightNo: "Nicht hell genug zum Handeln.",
-    brightUnknown: "Helligkeit wurde nicht geprüft; ein früheres Gate hat entschieden.",
+    brightYes: "hell genug",
+    brightNo: "nicht hell genug",
+    brightUnknown: "nicht geprüft, ein früheres Gate hat entschieden",
     weatherAllowed: "gilt als hell",
     weatherNotAllowed: "gilt nicht als hell",
-    pvOverriding: "PV ist hoch genug, um das Wetter zu übersteuern.",
+    pvOverriding: "PV übersteuert das Wetter",
     pvOverrideIn: "PV übersteuert das Wetter in",
     pvOverrideMinutes: "Min., wenn sie so hoch bleibt.",
-    pvBelowOverride: "PV liegt unter dem Übersteuerungswert.",
     coversTotal: "Konfigurierte Rollläden",
     coversShading: "Beschattung",
     coversHeating: "Sonnenheizen",
@@ -204,44 +196,25 @@ function collect(hass) {
 }
 
 /**
- * What the decision concluded, minus everything the summary above already says.
+ * The two values whose words come from the integration's own translations.
  *
- * The target and what became of it are four rows that read as one sentence, so
- * they live in the summary card and this is left as the reasoning behind it.
+ * Everything else in the record is a number or a boolean and reads better
+ * packed into the lines above than as a row of its own. These two do not:
+ * ``state_attr`` in a template returns the raw enum, so a row is what turns
+ * ``manual_override`` into something a person can read.
  */
 function attributeRows(entity, t) {
-  const rows = [
+  return [
     ["reason_code", t.reason],
     ["blocked_by", t.blockedBy],
-    ["episode_active", t.episode],
-    ["sun_on_window", t.sunOnWindow],
-    ["profile_angle", t.profileAngle],
-    ["penetration_depth", t.penetration],
-  ];
-  const suffixes = { profile_angle: "\u00b0", penetration_depth: " m" };
-  return rows.map(([attribute, name]) => ({
-    type: "attribute",
-    entity,
-    attribute,
-    name,
-    ...(suffixes[attribute] ? { suffix: suffixes[attribute] } : {}),
-  }));
+  ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
 }
 
-function inputRows(entity, t) {
-  return [
-    ["outdoor_temp", t.outdoor, " °C"],
-    ["indoor_temp", t.indoor, " °C"],
-    ["pv_power", t.pv, " W"],
-    ["weather", t.weather, ""],
-    ["wind_speed", t.wind, " km/h"],
-  ].map(([attribute, name, suffix]) => ({
-    type: "attribute",
-    entity,
-    attribute,
-    name,
-    ...(suffix ? { suffix } : {}),
-  }));
+/** A rounded reading, or a dash where the sensor has nothing to say. */
+function num(entity, name, digits, unit) {
+  const a = attrOf(entity, name);
+  const rounded = digits === 0 ? `${a} | round(0) | int` : `${a} | round(${digits})`;
+  return `{% if ${a} is none %}\u2013{% else %}{{ ${rounded} }}${unit}{% endif %}`;
 }
 
 function attrOf(entity, name) {
@@ -251,39 +224,26 @@ function attrOf(entity, name) {
 /**
  * "Not bright enough" in words, with a live countdown to the PV override.
  *
- * A markdown card rather than attribute rows because the interesting number,
- * how much longer PV has to hold, is not stored anywhere: only the moment the
- * override engages is. Templates using now() re-render every minute, so the
- * countdown stays honest between the five-minute evaluations.
+ * A template rather than rows because the interesting number, how much longer
+ * PV has to hold, is not stored anywhere: only the moment the override engages
+ * is. Templates using now() re-render every minute, so the countdown stays
+ * honest between the five-minute evaluations.
  */
-function brightnessCard(entity, t) {
-  const attr = (name) => attrOf(entity, name);
-  return {
-    type: "markdown",
-    title: t.brightness,
-    content: [
-      `{% set bright = ${attr("bright")} %}`,
-      `{% set at = ${attr("pv_override_at")} %}`,
-      "{% if bright is none %}",
-      t.brightUnknown,
-      "{% else %}",
-      `**{{ ${"'" + t.brightYes + "' if bright else '" + t.brightNo + "'"} }}**`,
-      "",
-      `- {{ ${attr("weather")} }}:`,
-      `  {{ ${"'" + t.weatherAllowed + "' if " + attr("weather_ok") + " else '" + t.weatherNotAllowed + "'"} }}`,
-      `- {{ ${attr("pv_power")} }} W`,
-      "{% endif %}",
-      "",
-      `{% if ${attr("pv_override_active")} %}`,
-      t.pvOverriding,
-      "{% elif at %}",
-      "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60) | round(0, 'ceil') | int %}",
-      `${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}`,
-      "{% else %}",
-      t.pvBelowOverride,
-      "{% endif %}",
-    ].join("\n"),
-  };
+function brightnessLine(entity, t) {
+  const a = (name) => attrOf(entity, name);
+  const verdict = `${"'" + t.brightYes + "' if " + a("bright") + " else '" + t.brightNo + "'"}`;
+  const allowed = `${"'" + t.weatherAllowed + "' if " + a("weather_ok") + " else '" + t.weatherNotAllowed + "'"}`;
+  return [
+    `- **${t.brightness}:** `
+      + `{% if ${a("bright")} is none %}${t.brightUnknown}{% else %}`
+      + `{{ ${verdict} }} · {{ ${a("weather")} }} {{ ${allowed} }} · `
+      + `${num(entity, "pv_power", 0, " W")}{% endif %}`
+      + `{% set at = ${a("pv_override_at")} %}`
+      + `{% if ${a("pv_override_active")} %} · ${t.pvOverriding}{% elif at %}`
+      + "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60)"
+      + " | round(0, 'ceil') | int %}"
+      + ` · ${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}{% endif %}`,
+  ];
 }
 
 function statusRows(entity, t) {
@@ -402,19 +362,28 @@ function debugView(covers, t) {
             + `{% elif ${attrOf(decision, "would_move")} %}${t.wouldMoveNow}`
             + `{% else %}${t.nothingToDo}{% endif %}`,
           "{% endif %}",
+          "",
+          // Eleven readings that were two cards and eleven rows of chrome.
+          // Grouped, they are four lines and easier to take in at once.
+          `{% if ${attrOf(decision, "sun_on_window")} %}`,
+          `- **${t.sun}:** ${num(decision, "profile_angle", 1, " °")}`
+            + ` · ${num(decision, "penetration_depth", 2, " m")} ${t.intoRoom}`,
+          "{% else %}",
+          `- **${t.sun}:** ${t.notOnThisWindow}`,
+          "{% endif %}",
+          ...brightnessLine(decision, t),
+          `- **${t.readings}:** ${num(decision, "outdoor_temp", 1, "")}`
+            + ` / ${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`
+            + ` · ${num(decision, "wind_speed", 1, " km/h")}`,
+          `- **${t.episodeLabel}:** {% if ${attrOf(decision, "episode_active")} %}`
+            + `${t.episodeRunning}{% else %}${t.episodeIdle}{% endif %}`,
         ].join("\n"),
-      },
-      {
-        type: "entities",
-        title: t.inputs,
-        entities: inputRows(decision, t),
       },
       {
         type: "entities",
         title: t.decision,
         entities: attributeRows(decision, t),
       },
-      brightnessCard(decision, t),
       {
         type: "history-graph",
         hours_to_show: 24,

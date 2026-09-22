@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The debug view is about half as tall.** Eleven readings sat in two cards of
+  labelled rows, each row costing a line of its own to carry one number. They
+  are four packed lines now, grouped by what they are about: the sun on the
+  window, the brightness, the readings, the episode. A cover is four cards
+  instead of six.
+
+  The two values worth a row still have one. Every other value in the record is
+  a number or a yes or a no, but the reason and what blocked it are words that
+  come from the integration's own translations, and a template would print the
+  raw `manual_override` instead.
+
+  One line went: when PV is neither overriding the weather nor climbing towards
+  it, the brightness line now ends after the wattage instead of saying so.
+
 ## 1.7.0 - 2026-09-22
 
 ### Added

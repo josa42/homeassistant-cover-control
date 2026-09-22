@@ -384,6 +384,12 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
 
     assert expected - shown == set(), "decision attributes missing from the debug view"
     assert all(row.get("name") for row in rows), "every row needs a readable name"
-    angle = next(row for row in rows if row["attribute"] == "profile_angle")
-    assert angle["name"] == "Angle of the sun on the window"
-    assert angle["suffix"] == "°"
+
+    sun = next(line for line in templates.splitlines() if "profile_angle" in line)
+    assert "penetration_depth" in sun, "the angle belongs beside the depth it explains"
+    assert "°" in sun and " m" in sun, "both want their unit"
+
+    # Only the two values whose words come from the translations earn a row;
+    # a number in a row costs about forty pixels to say what a line says in a
+    # few characters, and there were eleven of them.
+    assert {row["attribute"] for row in rows} == {"reason_code", "blocked_by"}
