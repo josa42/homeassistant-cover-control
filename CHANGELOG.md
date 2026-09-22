@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A Raffstore no longer twitches instead of shading.** The position and the
+  slat angle went out as two commands back to back. A cover that is still
+  travelling reads the tilt command as a new destination, abandons the run and
+  settles back where it started, so it never reached the position it was sent
+  to. Every one of those reports asked for a fresh evaluation, which sent the
+  same pair of commands again, and the cover went up and down on the spot for
+  as long as the sun was on the window. The position is now driven on its own
+  and the slats are set once the cover has arrived.
+
+- **A cover that never arrives is no longer commanded on a loop.** Reports that
+  a cover makes while travelling no longer ask for a re-evaluation, and the
+  same command is not sent twice inside the settle window. Either alone stops
+  the twitching above; together they also cap anything else that could ever
+  command a cover faster than it can move. The decision sensor says
+  `awaiting_travel` while a command is out.
+
+- **Slats are set even when the cover is already at its position.** The
+  threshold that keeps small corrections from starting the motor covered the
+  tilt as well, so a cover that happened to sit within 5% of its target kept
+  its slats wherever they were.
+
 ## 1.5.0 - 2026-09-21
 
 ### Added

@@ -13,11 +13,13 @@ from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
+    STATE_CLOSING,
     STATE_ON,
+    STATE_OPENING,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import Context, Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -53,6 +55,11 @@ _LOGGER = logging.getLogger(__name__)
 _WIND_TO_KMH = {"km/h": 1.0, "m/s": 3.6, "mph": 1.609344, "kn": 1.852}
 
 
+def _is_travelling(state: State | None) -> bool:
+    """Whether a cover state says the motor is running."""
+    return state is not None and state.state in (STATE_OPENING, STATE_CLOSING)
+
+
 class CoverRuntime:
     """Per-cover runtime state that must survive between evaluations."""
 
@@ -71,6 +78,9 @@ class CoverRuntime:
         self._contexts: dict[str, datetime] = {}
         self.expected_position: int | None = None
         self.last_command: datetime | None = None
+        #: The service and value last sent, so the same one is not repeated
+        #: while the cover is still supposed to be carrying it out.
+        self.last_sent: tuple[str, int] | None = None
 
     @property
     def is_paused(self) -> bool:
@@ -173,9 +183,19 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
 
     async def _handle_state_change(self, event: Event) -> None:
         entity_id = event.data["entity_id"]
+        travelling = False
         for runtime in self.runtimes.values():
-            if runtime.cover_entity == entity_id:
-                self._detect_manual_move(runtime, event)
+            if runtime.cover_entity != entity_id:
+                continue
+            self._detect_manual_move(runtime, event)
+            travelling = travelling or _is_travelling(event.data.get("new_state"))
+        if travelling:
+            # A cover that is on its way reports every step it takes, and each
+            # report would otherwise ask for another evaluation whose command
+            # lands in the middle of the run and abandons it. The cover fires
+            # another event when it comes to rest, which is when the next
+            # command is actually due.
+            return
         await self.async_request_refresh()
 
     @callback
@@ -327,6 +347,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             current_tilt=(
                 cover.attributes.get("current_tilt_position") if cover else None
             ),
+            is_moving=_is_travelling(cover),
             sun_elevation=sun.attributes.get("elevation") if sun else None,
             sun_azimuth=sun.attributes.get("azimuth") if sun else None,
             outdoor_temp=self._float_state(config.get(CONF_OUTDOOR_TEMP)),
@@ -431,23 +452,46 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             # A broken notify target must never stop covers from being managed.
             _LOGGER.warning("Could not notify %s: %s", target, err)
 
+    @staticmethod
+    def _worth_moving(target: int | None, current: int | None) -> bool:
+        """Whether a target sits far enough from the cover to be worth a motor start."""
+        return target is not None and (
+            current is None or abs(target - current) >= MIN_MOVEMENT_DELTA
+        )
+
+    def _next_command(
+        self, decision: Decision, inputs: Inputs
+    ) -> tuple[str, str, int] | None:
+        """The single command that brings this cover closest to its decision.
+
+        Position and tilt are never sent together. A cover that is still
+        travelling reads a tilt command as a new destination, abandons the run
+        and settles back where it started, so the slats are left until the
+        cover has arrived and are set on a later evaluation.
+        """
+        # Small corrections are not worth a motor start, but protection always is.
+        if decision.intent is Intent.STORM or self._worth_moving(
+            decision.target_position, inputs.current_position
+        ):
+            return "set_cover_position", "position", decision.target_position
+        if (
+            inputs.supports_tilt
+            and not inputs.is_moving
+            and self._worth_moving(decision.target_tilt, inputs.current_tilt)
+        ):
+            return "set_cover_tilt_position", "tilt_position", decision.target_tilt
+        return None
+
     async def _apply(
         self, runtime: CoverRuntime, decision: Decision, inputs: Inputs
     ) -> Decision:
-        """Send the commands a decision asks for, if they are worth sending."""
+        """Send the command a decision asks for, if it is worth sending."""
         dry_run = runtime.dry_run
         if decision.target_position is None:
             return replace(decision, dry_run=dry_run)
 
-        target = decision.target_position
-        current = inputs.current_position
-        is_storm = decision.intent is Intent.STORM
-        # Small corrections are not worth a motor start, but protection always is.
-        if (
-            not is_storm
-            and current is not None
-            and abs(target - current) < MIN_MOVEMENT_DELTA
-        ):
+        command = self._next_command(decision, inputs)
+        if command is None:
             return replace(
                 decision,
                 would_move=False,
@@ -456,6 +500,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 message=f"{decision.message} Already within "
                 f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
             )
+        service, field, value = command
 
         if dry_run:
             # Everything above still ran, so the decision is the real one. Only
@@ -469,37 +514,49 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 message=f"{decision.message} No command sent.",
             )
 
+        now = dt_util.utcnow()
+        if (
+            runtime.last_sent == (service, value)
+            and runtime.last_command is not None
+            and now - runtime.last_command < SETTLE_TIME
+        ):
+            # Repeating a command the cover has not had time to carry out
+            # achieves nothing, and a cover that never reports the position we
+            # asked for would otherwise be re-commanded on every state change
+            # it causes, forever.
+            return replace(
+                decision,
+                would_move=True,
+                acted=False,
+                blocked_by="awaiting_travel",
+                message=f"{decision.message} The same command is already out, "
+                "waiting for the cover to get there.",
+            )
+
         context = Context()
         runtime.remember_context(context)
-        runtime.expected_position = target
-        runtime.last_command = dt_util.utcnow()
+        # Always the position, whichever command is going out: this is what a
+        # later position report is judged against.
+        runtime.expected_position = decision.target_position
+        runtime.last_command = now
+        runtime.last_sent = (service, value)
 
         try:
             await self.hass.services.async_call(
                 "cover",
-                "set_cover_position",
-                {ATTR_ENTITY_ID: runtime.cover_entity, "position": target},
+                service,
+                {ATTR_ENTITY_ID: runtime.cover_entity, field: value},
                 blocking=False,
                 context=context,
             )
-            if decision.target_tilt is not None and inputs.supports_tilt:
-                await self.hass.services.async_call(
-                    "cover",
-                    "set_cover_tilt_position",
-                    {
-                        ATTR_ENTITY_ID: runtime.cover_entity,
-                        "tilt_position": decision.target_tilt,
-                    },
-                    blocking=False,
-                    context=context,
-                )
         except (HomeAssistantError, vol.Invalid) as err:
             # One cover refusing a command must not take down the whole
             # integration, and the reason has to end up in the record.
             _LOGGER.warning(
-                "Could not move %s to %s%%: %s", runtime.cover_entity, target, err
+                "Could not send %s=%s to %s: %s", field, value, runtime.cover_entity, err
             )
             runtime.expected_position = None
+            runtime.last_sent = None
             return replace(
                 decision,
                 would_move=True,

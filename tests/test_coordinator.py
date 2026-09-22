@@ -196,7 +196,7 @@ async def test_small_corrections_do_not_start_the_motor(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
     """Target 50 against a current 52 is not worth a motor start."""
-    set_scene(position=52)
+    set_scene(position=52, tilt=45)
     await setup_entry(entry)
 
     assert not cover_calls["position"]
@@ -204,6 +204,17 @@ async def test_small_corrections_do_not_start_the_motor(
         "not moving"
         in hass.states.get("sensor.raffstore_decision").attributes["message"]
     )
+
+
+async def test_a_cover_at_its_position_still_gets_its_slats_set(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """The position threshold must not swallow the tilt along with the travel."""
+    set_scene(position=52, tilt=100)
+    await setup_entry(entry)
+
+    assert not cover_calls["position"]
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
 
 
 async def test_storm_ignores_the_motor_protection_threshold(
@@ -229,3 +240,109 @@ async def test_a_failing_cover_does_not_break_the_integration(
     decision = hass.states.get("sensor.raffstore_decision")
     assert decision.attributes["blocked_by"] == "command_failed"
     assert decision.state == "cooling"
+
+
+async def report(
+    hass: HomeAssistant, state: str, position: int, tilt: int, context: Context
+) -> None:
+    """Report a cover state exactly as the device would, travel states included."""
+    hass.states.async_set(
+        COVER,
+        state,
+        {
+            "current_position": position,
+            "current_tilt_position": tilt,
+            "supported_features": 255,
+        },
+        context=context,
+    )
+    await hass.async_block_till_done()
+
+
+async def test_a_cover_that_never_arrives_is_not_re_commanded_on_every_report(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """The oscillation: a cover that starts, gives up and reports its old position.
+
+    Every report asked for a fresh evaluation, which re-sent the very command
+    that produced the report, so the cover twitched on the coordinator's
+    debounce interval for as long as the episode ran.
+    """
+    set_scene()
+    await setup_entry(entry)
+    assert len(cover_calls["position"]) == 1
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+
+    # One aborted run: it sets off, stops and settles back at 100.
+    for _ in range(3):
+        await report(hass, "closing", 100, 100, ours)
+        await report(hass, "open", 99, 95, ours)
+        await report(hass, "opening", 99, 95, ours)
+        await report(hass, "open", 100, 100, ours)
+
+    assert len(cover_calls["position"]) == 1, "the command was repeated"
+    decision = hass.states.get("sensor.raffstore_decision")
+    assert decision.attributes["blocked_by"] == "awaiting_travel"
+    assert not decision.attributes["acted"]
+
+
+async def test_the_command_is_retried_once_the_cover_has_had_its_time(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls, freezer
+) -> None:
+    """The resend guard is a rate limit, not a one-shot."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+
+    await report(hass, "open", 100, 100, ours)
+    await entry.runtime_data.async_refresh()
+    assert len(cover_calls["position"]) == 1
+
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["position"]) == 2
+    assert cover_calls["position"][-1].data["position"] == 50
+
+
+async def test_nothing_is_sent_into_a_cover_that_is_still_moving(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls, freezer
+) -> None:
+    """A tilt sent mid-run is read as a new destination and abandons the run."""
+    set_scene(position=52, tilt=100)  # at its position, slats still due
+    await setup_entry(entry)
+    assert len(cover_calls["tilt"]) == 1
+
+    # Far enough on that the resend guard is not what holds the command back.
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    await report(hass, "closing", 52, 100, Context())
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == 1, "commanded a cover that was still moving"
+
+    await report(hass, "open", 52, 100, Context())
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == 2, "expected the slats once the run ended"
+
+
+async def test_a_travelling_cover_does_not_ask_for_an_evaluation(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, monkeypatch
+) -> None:
+    """Every step of a run reported is a step that must not re-open the question."""
+    set_scene()
+    await setup_entry(entry)
+
+    refreshes = []
+
+    async def record_refresh() -> None:
+        refreshes.append(1)
+
+    monkeypatch.setattr(entry.runtime_data, "async_request_refresh", record_refresh)
+
+    await report(hass, "closing", 90, 100, Context())
+    await report(hass, "opening", 90, 100, Context())
+    assert refreshes == [], "a moving cover asked to be re-evaluated"
+
+    await report(hass, "open", 90, 100, Context())
+    assert len(refreshes) == 1, "a settled cover must be re-evaluated"

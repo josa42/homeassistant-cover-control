@@ -52,11 +52,11 @@ def two_cover_entry(hass: HomeAssistant) -> MockConfigEntry:
     return mock
 
 
-def set_second_cover(hass: HomeAssistant, position: int = 100) -> None:
+def set_second_cover(hass: HomeAssistant, position: int = 100, tilt: int = 100) -> None:
     hass.states.async_set(
         SECOND,
         "open",
-        {"current_position": position, "current_tilt_position": 100, "supported_features": 255},
+        {"current_position": position, "current_tilt_position": tilt, "supported_features": 255},
     )
 
 
@@ -69,7 +69,7 @@ async def test_startup_only_sets_a_baseline(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
     """Otherwise every restart notifies about every cover."""
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
     assert notifications == []
 
@@ -77,10 +77,10 @@ async def test_startup_only_sets_a_baseline(
 async def test_a_real_change_sends_one_notification(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
 
-    set_scene(position=50, wind=55.0)  # storm outranks shading
+    set_scene(position=50, tilt=45, wind=55.0)  # storm outranks shading
     await refresh(hass, notify_entry)
 
     assert len(notifications) == 1
@@ -91,13 +91,13 @@ async def test_a_real_change_sends_one_notification(
 async def test_changes_on_several_covers_are_combined(
     hass: HomeAssistant, two_cover_entry, set_scene, setup_entry, notifications
 ) -> None:
-    set_scene(position=50)
-    set_second_cover(hass, 50)
+    set_scene(position=50, tilt=45)
+    set_second_cover(hass, 50, tilt=45)
     await setup_entry(two_cover_entry)
     assert notifications == []
 
-    set_scene(position=50, wind=55.0)
-    set_second_cover(hass, 50)
+    set_scene(position=50, tilt=45, wind=55.0)
+    set_second_cover(hass, 50, tilt=45)
     await refresh(hass, two_cover_entry)
 
     assert len(notifications) == 1, "both covers must share one notification"
@@ -109,10 +109,10 @@ async def test_moving_a_cover_notifies_even_within_the_same_intent(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
     """Tracking the sun far enough to move the cover is a real change."""
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
 
-    set_scene(position=50, sun_elevation=35.0)
+    set_scene(position=50, tilt=45, sun_elevation=35.0)
     await refresh(hass, notify_entry)
 
     assert len(notifications) == 1
@@ -137,10 +137,10 @@ async def test_a_drift_too_small_to_move_sends_nothing(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
     """Below the motor-protection threshold nothing moves, so nothing changed."""
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
 
-    set_scene(position=50, sun_elevation=44.0)
+    set_scene(position=50, tilt=45, sun_elevation=44.0)
     await refresh(hass, notify_entry)
 
     assert notifications == []
@@ -160,7 +160,7 @@ async def test_a_move_right_after_startup_notifies(
 async def test_an_unchanged_tick_sends_nothing(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
     await refresh(hass, notify_entry)
     await refresh(hass, notify_entry)
@@ -177,11 +177,11 @@ async def test_target_drift_in_dry_run_sends_nothing(
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, CONF_NOTIFY_TARGET: "notify.test_target", CONF_DRY_RUN: True}
     )
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(entry)
     first = hass.states.get("sensor.raffstore_decision").attributes["target_position"]
 
-    set_scene(position=50, sun_elevation=35.0)  # the sun moved: a different target, same intent
+    set_scene(position=50, tilt=45, sun_elevation=35.0)  # the sun moved: a different target, same intent
     await refresh(hass, entry)
     second = hass.states.get("sensor.raffstore_decision").attributes["target_position"]
 
@@ -193,12 +193,12 @@ async def test_a_cover_briefly_unavailable_sends_nothing(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
     """Reloads and restarts make covers blink unavailable; that is not a change."""
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
 
     hass.states.async_set(COVER, "unavailable", {})
     await refresh(hass, notify_entry)
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await refresh(hass, notify_entry)
 
     assert notifications == []
@@ -208,13 +208,13 @@ async def test_a_debounce_that_recovers_sends_nothing(
     hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
 ) -> None:
     """A passing cloud holds the episode briefly; the episode never ended."""
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(notify_entry)
 
-    set_scene(position=50, pv="100")  # brightness drops, the episode starts debouncing
+    set_scene(position=50, tilt=45, pv="100")  # brightness drops, the episode starts debouncing
     await refresh(hass, notify_entry)
     assert hass.states.get("sensor.raffstore_decision").attributes["reason_code"] == "debouncing"
-    set_scene(position=50)  # and recovers
+    set_scene(position=50, tilt=45)  # and recovers
     await refresh(hass, notify_entry)
 
     assert notifications == []
@@ -223,9 +223,9 @@ async def test_a_debounce_that_recovers_sends_nothing(
 async def test_no_target_means_no_notifications(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, notifications
 ) -> None:
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(entry)
-    set_scene(position=50, wind=55.0)
+    set_scene(position=50, tilt=45, wind=55.0)
     await refresh(hass, entry)
     assert notifications == []
 
@@ -236,9 +236,9 @@ async def test_dry_run_lines_are_marked(
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, CONF_NOTIFY_TARGET: "notify.test_target", CONF_DRY_RUN: True}
     )
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(entry)
-    set_scene(position=50, wind=55.0)
+    set_scene(position=50, tilt=45, wind=55.0)
     await refresh(hass, entry)
 
     assert len(notifications) == 1
@@ -251,9 +251,9 @@ async def test_a_broken_target_does_not_stop_control(
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, CONF_NOTIFY_TARGET: "notify.does_not_exist"}
     )
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(entry)
-    set_scene(position=50, wind=55.0)
+    set_scene(position=50, tilt=45, wind=55.0)
     await refresh(hass, entry)
 
     assert cover_calls["position"][-1].data["position"] == 100
@@ -266,9 +266,9 @@ async def test_a_malformed_target_is_reported_not_crashed(
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, CONF_NOTIFY_TARGET: "not-a-service"}
     )
-    set_scene(position=50)
+    set_scene(position=50, tilt=45)
     await setup_entry(entry)
-    set_scene(position=50, wind=55.0)
+    set_scene(position=50, tilt=45, wind=55.0)
     await refresh(hass, entry)
 
     assert "is not a service" in caplog.text

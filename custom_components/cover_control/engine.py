@@ -55,6 +55,9 @@ class Inputs:
     supports_tilt: bool = False
     current_position: int | None = None
     current_tilt: int | None = None
+    #: The motor is running right now. The engine ignores it; it is what stops
+    #: a command being sent into a run that is still going.
+    is_moving: bool = False
     sun_elevation: float | None = None
     sun_azimuth: float | None = None
     outdoor_temp: float | None = None

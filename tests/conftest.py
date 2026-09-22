@@ -95,6 +95,7 @@ def set_scene(hass: HomeAssistant):
             "weather": "sunny",
             "wind": 10.0,
             "position": 100,
+            "tilt": 100,
             "features": 255,
         }
         scene.update(overrides)
@@ -115,7 +116,7 @@ def set_scene(hass: HomeAssistant):
             "open",
             {
                 "current_position": scene["position"],
-                "current_tilt_position": 100,
+                "current_tilt_position": scene["tilt"],
                 "supported_features": scene["features"],
             },
         )

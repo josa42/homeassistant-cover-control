@@ -30,8 +30,11 @@ PV_OVERRIDE_SUSTAIN = timedelta(minutes=20)
 #: Smaller target changes than this are not sent to the motor.
 MIN_MOVEMENT_DELTA = 5
 
-#: After commanding a cover, position reports within this window are treated as
-#: the cover travelling rather than as a human at the wall switch.
+#: How long a cover is assumed to need to finish a run. Two things hang off
+#: it: position reports inside the window are treated as the cover travelling
+#: rather than as a human at the wall switch, and an identical command is not
+#: sent again until the window has passed, which caps how fast a cover that
+#: never reaches its target can be re-commanded.
 SETTLE_TIME = timedelta(seconds=90)
 
 #: How long a context id we created stays recognisable as ours.

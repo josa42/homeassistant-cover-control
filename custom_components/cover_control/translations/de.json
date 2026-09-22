@@ -183,6 +183,7 @@
           "blocked_by": {
             "name": "Blockiert durch",
             "state": {
+              "awaiting_travel": "Wartet auf das Erreichen der Position",
               "command_failed": "Befehl fehlgeschlagen",
               "cover_switch": "Rollladen-Schalter aus",
               "cover_unavailable": "Rollladen nicht verfügbar",

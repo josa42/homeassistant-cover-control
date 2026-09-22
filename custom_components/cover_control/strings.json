@@ -183,6 +183,7 @@
           "blocked_by": {
             "name": "Blocked by",
             "state": {
+              "awaiting_travel": "Waiting for the cover to arrive",
               "command_failed": "Command failed",
               "cover_switch": "Cover switch off",
               "cover_unavailable": "Cover unavailable",

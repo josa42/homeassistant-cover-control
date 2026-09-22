@@ -66,12 +66,31 @@ async def test_shades_a_hot_sunny_window(
 
     assert cover_calls["position"], "expected the cover to be shaded"
     assert cover_calls["position"][-1].data["position"] == 50
-    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
 
     decision = hass.states.get("sensor.raffstore_decision")
     assert decision.state == "cooling"
     assert decision.attributes["reason_code"] == "shading"
     assert decision.attributes["target_position"] == 50
+
+
+async def test_the_slats_are_set_only_once_the_cover_has_arrived(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """A tilt command sent into a running cover is read as a new destination.
+
+    The cover abandons the run and settles back where it started, so it never
+    reaches its position and the same pair of commands goes out again on the
+    state change that caused. Position first, tilt after arrival, breaks that.
+    """
+    set_scene()
+    await setup_entry(entry)
+
+    assert not cover_calls["tilt"], "the cover is still travelling"
+
+    set_scene(position=50)  # it arrives
+    await hass.async_block_till_done()
+
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
 
 
 async def test_decision_message_explains_the_number(
