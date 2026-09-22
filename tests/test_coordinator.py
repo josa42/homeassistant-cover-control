@@ -394,6 +394,8 @@ async def test_the_open_that_ends_an_episode_finishes_after_the_episode(
     # The sun leaves the window and the episode debounces, then ends.
     set_scene(position=50, tilt=45, sun_azimuth=20.0)
     await entry.runtime_data.async_refresh()
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
     freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
     set_scene(position=50, tilt=45, sun_azimuth=20.0)
     await entry.runtime_data.async_refresh()
@@ -444,3 +446,69 @@ async def test_a_storm_does_not_wait_behind_a_shading_run(
 
     assert cover_calls["position"][-1].data["position"] == 100
     assert hass.states.get("sensor.raffstore_decision").state == "storm"
+
+
+async def test_the_slats_are_judged_when_their_turn_comes_not_when_queued(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    set_scene,
+    setup_entry,
+    cover_calls,
+    freezer,
+) -> None:
+    """The slats swing while the cover travels, so deciding early decides wrong.
+
+    Here they already sit where the open wants them when the open is worked
+    out, and are somewhere else by the time the cover has arrived. Nothing
+    comes after an episode that could notice: those decisions carry no target.
+    """
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 50, 100, ours)  # shaded, slats wide open
+    await entry.runtime_data.async_refresh()
+
+    set_scene(position=50, tilt=100, sun_azimuth=20.0)  # the sun leaves
+    await entry.runtime_data.async_refresh()  # the episode starts debouncing
+    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
+    set_scene(position=50, tilt=100, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+    assert hass.states.get("sensor.raffstore_decision").attributes["reason_code"] == (
+        "episode_ended"
+    )
+    assert cover_calls["position"][-1].data["position"] == 100
+
+    # It opens, and the slats fall shut somewhere during the run.
+    await report(hass, "open", 100, 30, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 100
+
+
+async def test_a_step_the_cover_no_longer_needs_is_dropped(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    set_scene,
+    setup_entry,
+    cover_calls,
+    freezer,
+) -> None:
+    """The other half of judging late: no motor start for a slat angle it has."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 50, 45, ours)
+    await entry.runtime_data.async_refresh()
+    tilts = len(cover_calls["tilt"])
+
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+
+    # It opens and the slats end up where the open wanted them anyway.
+    await report(hass, "open", 100, 100, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == tilts, "started the motor for nothing"

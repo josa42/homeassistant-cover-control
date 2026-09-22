@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The slat angle is worked out when the slats are set, not when the cover is
+  sent on its way.** Whether a cover needed its slats moving was decided before
+  it started travelling, and the slats swing during the run: an angle that
+  matched the target beforehand is often exactly what is missing once the cover
+  has arrived. Both halves of a movement are now worked out as they are sent,
+  so an angle that has drifted is corrected and one that already fits does not
+  start the motor for nothing. It went unnoticed while an episode was running,
+  because the next evaluation worked the angle out again from scratch. Nothing
+  follows the open that ends an episode, which is where it cost a cover its
+  slat angle for the rest of the day.
+
 ### Added
 
 - **The debug view shows the angle the sun strikes the window at.** It is what

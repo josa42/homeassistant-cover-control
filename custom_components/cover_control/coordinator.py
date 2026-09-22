@@ -67,6 +67,9 @@ class Command:
     service: str
     field: str
     value: int
+    #: Send it however small the correction is. Protecting the hardware is
+    #: always worth a motor start; nothing else is.
+    force: bool = False
 
 
 class CoverRuntime:
@@ -494,41 +497,54 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             current is None or abs(target - current) >= MIN_MOVEMENT_DELTA
         )
 
-    def _commands_for(self, decision: Decision, inputs: Inputs) -> list[Command]:
+    @staticmethod
+    def _reading(command: Command, inputs: Inputs) -> int | None:
+        """What the cover currently reads back for the value a command sets."""
+        return (
+            inputs.current_position
+            if command.field == "position"
+            else inputs.current_tilt
+        )
+
+    def _steps_for(self, decision: Decision, inputs: Inputs) -> list[Command]:
         """The commands that carry out a decision, in the order they must be sent.
 
         Position first: the slats hang off where the cover is, and a tilt sent
         into a moving cover cancels the run it is in the middle of.
+
+        Both are queued whether or not the cover needs them yet. Whether one is
+        worth sending is decided when its turn comes rather than here: the
+        slats swing as the cover travels, so a tilt that matches the target now
+        is often exactly what is missing by the time the cover has arrived.
         """
-        commands = []
-        # Small corrections are not worth a motor start, but protection always is.
-        if decision.intent is Intent.STORM or self._worth_moving(
-            decision.target_position, inputs.current_position
-        ):
-            commands.append(
-                Command("set_cover_position", "position", decision.target_position)
+        steps = [
+            Command(
+                "set_cover_position",
+                "position",
+                decision.target_position,
+                force=decision.intent is Intent.STORM,
             )
-        if inputs.supports_tilt and self._worth_moving(
-            decision.target_tilt, inputs.current_tilt
-        ):
-            commands.append(
+        ]
+        if inputs.supports_tilt and decision.target_tilt is not None:
+            steps.append(
                 Command("set_cover_tilt_position", "tilt_position", decision.target_tilt)
             )
-        return commands
+        return steps
 
-    @staticmethod
-    def _command_arrived(runtime: CoverRuntime, inputs: Inputs) -> bool:
+    def _is_due(self, command: Command, inputs: Inputs) -> bool:
+        """Whether a command still needs sending, judged against the cover now."""
+        if command.force:
+            return True
+        return self._worth_moving(command.value, self._reading(command, inputs))
+
+    def _command_arrived(self, runtime: CoverRuntime, inputs: Inputs) -> bool:
         """Whether the cover reads back what the command in flight asked for."""
         command = runtime.in_flight
         if command is None:
             return True
         if inputs.is_moving:
             return False
-        reached = (
-            inputs.current_position
-            if command.field == "position"
-            else inputs.current_tilt
-        )
+        reached = self._reading(command, inputs)
         return reached is not None and abs(reached - command.value) <= MIN_MOVEMENT_DELTA
 
     async def _apply(
@@ -549,7 +565,8 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             # because the cover is never asked to go anywhere.
             if decision.target_position is None:
                 return replace(decision, dry_run=True)
-            if not self._commands_for(decision, inputs):
+            steps = self._steps_for(decision, inputs)
+            if not any(self._is_due(step, inputs) for step in steps):
                 return replace(
                     decision,
                     would_move=False,
@@ -627,9 +644,18 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         if decision.target_position is not None:
             destination = (decision.target_position, decision.target_tilt)
             if destination != runtime.queued_for or runtime.is_idle:
-                runtime.load_queue(self._commands_for(decision, inputs), destination)
+                runtime.load_queue(self._steps_for(decision, inputs), destination)
 
-        if not runtime.queue:
+        # Steps the cover no longer needs are dropped here rather than when
+        # they were queued, which is the whole point of queueing them whole.
+        command = None
+        while runtime.queue:
+            candidate = runtime.queue.popleft()
+            if self._is_due(candidate, inputs):
+                command = candidate
+                break
+
+        if command is None:
             if decision.target_position is None:
                 return replace(decision, dry_run=False)
             return replace(
@@ -641,7 +667,6 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 f"{MIN_MOVEMENT_DELTA}% of target, not moving.",
             )
 
-        command = runtime.queue.popleft()
         context = Context()
         runtime.remember_context(context)
         # The position the queue is driving towards, which is what a later
