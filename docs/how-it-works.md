@@ -37,8 +37,8 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 - PV weather override threshold, above which sustained PV power is believed
   over the weather condition
 - Storm trigger and release wind speeds
-- **Orientation of the house**, the compass bearing of the side you call
-  south, from which each cover's window bearing is worked out. Not overridden
+- **Orientation of the south side**, its compass bearing, from which each
+  cover's window bearing is worked out. Not overridden
   per cover like the rest of this list; a window that needs its own bearing
   sets one below instead
 

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Fixed
+
+- **The house orientation is labelled when editing the hub.** It showed as
+  `house_orientation` there, because setting the hub up and editing it are two
+  forms with their own copies of the same labels and only the first had been
+  given the new one. Editing the hub also explains the wind release, the PV
+  threshold and the wind source now, which only the setup form did.
+
+- **The field says which side it is asking about.** It was called the
+  orientation of the house, which invites the bearing of whichever way the
+  front door faces. It is the bearing of the south side, and is called that
+  now.
+
 ### Changed
 
 - **The debug view is about half as tall.** Eleven readings sat in two cards of

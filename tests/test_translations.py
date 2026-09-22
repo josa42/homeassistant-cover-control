@@ -47,6 +47,33 @@ async def test_hub_schema_fields_are_all_translated(hass: HomeAssistant) -> None
     assert fields - labelled == set(), "config flow fields without a label"
 
 
+async def test_hub_options_fields_are_all_translated(hass: HomeAssistant) -> None:
+    """The options flow is the hub form people actually see twice.
+
+    Regression: a field added to the setup step only showed as its bare key
+    when the hub was reconfigured, because the two steps carry their own
+    copies of the same labels and only one of them was updated.
+    """
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    fields = {str(key) for key in result["data_schema"].schema}
+    step = load("strings.json")["options"]["step"]["init"]
+    assert fields - set(step["data"]) == set(), "options fields without a label"
+
+
+async def test_both_hub_steps_carry_the_same_labels() -> None:
+    """Setting the hub up and editing it are the same form, so the same words."""
+    strings = load("strings.json")
+    setup = strings["config"]["step"]["user"]
+    options = strings["options"]["step"]["init"]
+    assert set(setup["data"]) == set(options["data"])
+    assert set(setup.get("data_description", {})) == set(
+        options.get("data_description", {})
+    )
+
+
 async def test_cover_schema_fields_are_all_translated(hass: HomeAssistant) -> None:
     """Includes the tilt field, which only appears for tilt-capable covers."""
     entry = MockConfigEntry(domain=DOMAIN, data={})
