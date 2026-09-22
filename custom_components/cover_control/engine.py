@@ -16,9 +16,11 @@ from . import geometry
 from .const import (
     CONF_AZIMUTH,
     CONF_COOL_ABOVE,
+    CONF_FACADE,
     CONF_FOV_LEFT,
     CONF_FOV_RIGHT,
     CONF_HEAT_BELOW,
+    CONF_HOUSE_ORIENTATION,
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
     CONF_MAX_DEPTH,
@@ -35,9 +37,11 @@ from .const import (
     CONF_WINDOW_HEIGHT,
     COVER_DEFAULTS,
     DEFAULT_SEATING_POINT,
+    FACADE_OFFSET,
     GATE_DEBOUNCE,
     PV_OVERRIDE_SUSTAIN,
     CoverType,
+    Facade,
     Intent,
     Reason,
     StormAction,
@@ -110,6 +114,21 @@ def _seating_point(config: EffectiveConfig) -> int:
 
 def _cover_setting(config: EffectiveConfig, key: str):
     return config.cover(key, COVER_DEFAULTS.get(key))
+
+
+def _window_azimuth(config: EffectiveConfig) -> float:
+    """Which way the window faces, in degrees.
+
+    Normally the side of the house it is on, turned by however far the house
+    is off the compass. A window that sits on neither of the four sides, in a
+    bay or a dormer, carries its own bearing and that wins.
+    """
+    explicit = config.cover(CONF_AZIMUTH)
+    if explicit is not None:
+        return float(explicit)
+    facade = Facade(_cover_setting(config, CONF_FACADE))
+    orientation = float(config.get(CONF_HOUSE_ORIENTATION))
+    return (orientation + FACADE_OFFSET[facade]) % 360.0
 
 
 def evaluate(
@@ -323,7 +342,7 @@ def evaluate(
         )
     gates.append(Gate("sun_available", True))
 
-    azimuth = float(config.cover(CONF_AZIMUTH, 180.0))
+    azimuth = _window_azimuth(config)
     fov_left = float(_cover_setting(config, CONF_FOV_LEFT))
     fov_right = float(_cover_setting(config, CONF_FOV_RIGHT))
     elevation = inputs.sun_elevation

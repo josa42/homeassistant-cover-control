@@ -37,13 +37,19 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 - PV weather override threshold, above which sustained PV power is believed
   over the weather condition
 - Storm trigger and release wind speeds
+- **Orientation of the house**, the compass bearing of the side you call
+  south, from which each cover's window bearing is worked out. Not overridden
+  per cover like the rest of this list; a window that needs its own bearing
+  sets one below instead
 
 ### Per cover
 
 - **Dry run**, which withholds every command including storm protection
 
 - **Cover type**, pre-selected from what the cover reports it can do
-- **Orientation** in degrees (0 north, 90 east, 180 south, 270 west)
+- **Side of the house** the window is on: north, east, south or west
+- **Orientation of the window** in degrees, optional, for a window in a bay
+  or a dormer that sits on none of the four sides
 - **Window height** and **sill height**
 - **Allowed sun depth** into the room
 - **Field of view** left and right
@@ -52,6 +58,11 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 <br><br>
 
 ## The geometry
+
+Which way a window faces comes from the side of the house it is on, turned by
+however far the house is off the compass. A house is corrected once on the hub
+rather than window by window, and a window that sits on none of the four sides
+carries its own bearing, which wins.
 
 For each cover the integration computes the angle between the sun and the
 window normal. Outside the field of view, nothing happens. Inside it, it

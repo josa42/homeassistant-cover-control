@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **A cover is told which side of the house it is on, not a compass bearing.**
+  Set the **Orientation of the house** once on the hub, the bearing of the side
+  you call south, then give each cover **north**, **east**, **south** or
+  **west**. A house that turns out to sit a few degrees off the grid is
+  corrected in one place rather than window by window.
+
+  **Orientation of the window** is still there and still wins where it is set,
+  for a window in a bay or a dormer that is on none of the four sides. Covers
+  configured before this all carry one, so none of them move.
+
 ### Changed
 
 - **The debug view is shorter and reads in the order you ask the questions in.**

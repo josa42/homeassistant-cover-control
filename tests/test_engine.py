@@ -11,6 +11,8 @@ from custom_components.cover_control.const import (
     CONF_AZIMUTH,
     CONF_COOL_ABOVE,
     CONF_COVER_TYPE,
+    CONF_FACADE,
+    CONF_HOUSE_ORIENTATION,
     CONF_MAX_DEPTH,
     CONF_PV_OVERRIDE,
     CONF_PV_THRESHOLD,
@@ -25,6 +27,7 @@ from custom_components.cover_control.const import (
     CONF_WINDOW_HEIGHT,
     PV_OVERRIDE_SUSTAIN,
     CoverType,
+    Facade,
     Intent,
     Reason,
     StormAction,
@@ -551,3 +554,49 @@ def test_a_pause_ending_overnight_does_not_open_the_cover() -> None:
         assert decision.reason is not Reason.EPISODE_ENDED
     assert not state.active
     assert not state.override, "the stale episode's override goes with it"
+
+
+# --- which way the window faces -------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("facade", "expected"),
+    [(Facade.SOUTH, 180.0), (Facade.WEST, 270.0), (Facade.NORTH, 0.0), (Facade.EAST, 90.0)],
+)
+def test_a_square_house_puts_each_side_on_its_compass_point(
+    facade: Facade, expected: float
+) -> None:
+    decision, _ = run(cover={CONF_AZIMUTH: None, CONF_FACADE: facade})
+    assert decision.geometry["window_azimuth"] == expected
+
+
+@pytest.mark.parametrize(
+    ("facade", "expected"),
+    [(Facade.SOUTH, 195.0), (Facade.WEST, 285.0), (Facade.NORTH, 15.0), (Facade.EAST, 105.0)],
+)
+def test_a_house_off_the_grid_turns_every_side_with_it(
+    facade: Facade, expected: float
+) -> None:
+    """The whole point: correct the house once, not every window."""
+    decision, _ = run(
+        cover={CONF_AZIMUTH: None, CONF_FACADE: facade},
+        hub={CONF_HOUSE_ORIENTATION: 195.0},
+    )
+    assert decision.geometry["window_azimuth"] == expected
+
+
+def test_a_window_with_its_own_bearing_ignores_the_house() -> None:
+    """A bay or a dormer sits on none of the four sides."""
+    decision, _ = run(
+        cover={CONF_AZIMUTH: 135.0, CONF_FACADE: Facade.SOUTH},
+        hub={CONF_HOUSE_ORIENTATION: 195.0},
+    )
+    assert decision.geometry["window_azimuth"] == 135.0
+
+
+def test_a_cover_set_up_before_the_house_was_keeps_its_bearing() -> None:
+    """The baseline fixture is a cover from before sides existed: a bearing
+    and nothing else. Adding the house must not move a single one of them."""
+    assert CONF_AZIMUTH in COVER and CONF_FACADE not in COVER
+    decision, _ = run(hub={CONF_HOUSE_ORIENTATION: 195.0})
+    assert decision.geometry["window_azimuth"] == COVER[CONF_AZIMUTH]

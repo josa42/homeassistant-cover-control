@@ -57,6 +57,30 @@ class CoverType(StrEnum):
     OTHER = "other"
 
 
+class Facade(StrEnum):
+    """Which side of the house a window is on.
+
+    Stored rather than the compass bearing, so that a house discovered to be
+    turned a few degrees off the grid is corrected in one place instead of
+    once per window.
+    """
+
+    NORTH = "north"
+    EAST = "east"
+    SOUTH = "south"
+    WEST = "west"
+
+
+#: Degrees to add to the orientation of the house to face each side. South is
+#: the reference because that is the side the orientation names.
+FACADE_OFFSET: dict[Facade, float] = {
+    Facade.SOUTH: 0.0,
+    Facade.WEST: 90.0,
+    Facade.NORTH: 180.0,
+    Facade.EAST: 270.0,
+}
+
+
 class StormAction(StrEnum):
     """What a storm should do to a particular cover."""
 
@@ -129,6 +153,7 @@ CONF_WEATHER_STATES = "allowed_weather_states"
 CONF_WIND_THRESHOLD = "wind_threshold"
 CONF_WIND_RELEASE = "wind_release"
 CONF_NOTIFY_TARGET = "notify_target"
+CONF_HOUSE_ORIENTATION = "house_orientation"
 #: Covers the user has told the discovery issue to stop asking about.
 CONF_IGNORED_COVERS = "ignored_covers"
 CONF_DRY_RUN = "dry_run"
@@ -138,6 +163,7 @@ CONF_DRY_RUN = "dry_run"
 CONF_COVER_ENTITY = "cover_entity"
 CONF_COVER_TYPE = "cover_type"
 CONF_AZIMUTH = "azimuth"
+CONF_FACADE = "facade"
 CONF_WINDOW_HEIGHT = "window_height"
 CONF_SILL_HEIGHT = "sill_height"
 CONF_FOV_LEFT = "fov_left"
@@ -181,6 +207,9 @@ DEFAULTS: dict[str, object] = {
     CONF_WIND_THRESHOLD: 40.0,
     CONF_WIND_RELEASE: 30.0,
     CONF_DRY_RUN: False,
+    # The bearing of the side of the house called south. 180 is a house
+    # squared to the compass, which is the only guess worth making.
+    CONF_HOUSE_ORIENTATION: 180.0,
 }
 
 COVER_DEFAULTS: dict[str, object] = {
@@ -188,6 +217,7 @@ COVER_DEFAULTS: dict[str, object] = {
     CONF_FOV_RIGHT: 90.0,
     CONF_MAX_DEPTH: 0.0,
     CONF_SILL_HEIGHT: 0.0,
+    CONF_FACADE: Facade.SOUTH,
     CONF_SHADED_TILT: 45,
     CONF_SHADE_WINDOW_OPEN: False,
     CONF_STORM_ACTION: StormAction.IGNORE,

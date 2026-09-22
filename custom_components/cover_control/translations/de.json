@@ -9,6 +9,7 @@
           "weather_entity": "Wetter",
           "pv_power_entity": "PV-Leistung (optional)",
           "wind_source_entity": "Windquelle (optional)",
+          "house_orientation": "Ausrichtung des Hauses",
           "cool_above": "Beschatten über",
           "heat_below": "Sonnenheizen unter",
           "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
@@ -22,6 +23,7 @@
           "dry_run": "Testlauf für alle Rollläden"
         },
         "data_description": {
+          "house_orientation": "Die Himmelsrichtung der Hausseite, die du Süd nennst. 180 ist ein Haus im rechten Winkel zur Himmelsrichtung; 195 eintragen, wenn diese Seite tatsächlich nach Südsüdwest zeigt. Jedes Fenster wird daraus und aus seiner Hausseite berechnet, ein schräg stehendes Haus wird also hier einmal korrigiert statt Fenster für Fenster.",
           "pv_override_threshold": "Dauerhafte PV-Leistung über diesem Wert gilt als hell, auch wenn die Wetter-Entität eine nicht erlaubte Wetterlage meldet. 0 schaltet die Übersteuerung ab.",
           "wind_source_entity": "Leer lassen, um die Windgeschwindigkeit aus der Wetter-Entität zu lesen.",
           "pv_threshold": "Wird nur verwendet, wenn ein PV-Leistungssensor eingetragen ist.",
@@ -86,7 +88,8 @@
           "data": {
             "name": "Name",
             "cover_type": "Typ",
-            "azimuth": "Ausrichtung",
+            "facade": "Hausseite",
+            "azimuth": "Ausrichtung des Fensters (optional)",
             "window_height": "Fensterhöhe",
             "sill_height": "Brüstungshöhe über dem Boden",
             "max_penetration_depth": "Erlaubte Sonneneinfall-Tiefe in den Raum",
@@ -101,7 +104,8 @@
             "dry_run": "Testlauf"
           },
           "data_description": {
-            "azimuth": "Himmelsrichtung, in die das Fenster zeigt. 0 ist Norden, 90 Osten, 180 Süden, 270 Westen.",
+            "facade": "Auf welcher Seite dieses Fenster liegt. Die Himmelsrichtung ergibt sich daraus und aus der Ausrichtung des Hauses.",
+            "azimuth": "Nur für ein Fenster, das auf keiner der vier Seiten liegt, etwa im Erker oder in der Gaube. Leer lassen, um die Hausseite zu verwenden, was fast jedes Fenster möchte.",
             "max_penetration_depth": "0 m bedeutet gar keine direkte Sonne im Raum und schließt den Rollladen vollständig, sobald die Sonne auf das Fenster trifft.",
             "fov_left": "Nur unter 90 Grad verkleinern, wenn real etwas im Weg steht, etwa eine Laibung, ein Balkon oder ein Nachbarhaus. Links ist beim Südfenster die Vormittagsseite.",
             "shade_with_window_open": "Aus lässt den Rollladen bei offenem Fenster in Ruhe. Nur für Fenster einschalten, die gekippt statt weit geöffnet werden, denn ein Kontakt kann beides nicht unterscheiden.",
@@ -332,6 +336,14 @@
     }
   },
   "selector": {
+    "facade": {
+      "options": {
+        "north": "Nord",
+        "east": "Ost",
+        "south": "Süd",
+        "west": "West"
+      }
+    },
     "cover_type": {
       "options": {
         "raffstore": "Raffstore, mit Lamellenverstellung",

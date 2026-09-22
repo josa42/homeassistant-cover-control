@@ -27,9 +27,11 @@ from .const import (
     CONF_COVER_ENTITY,
     CONF_COVER_TYPE,
     CONF_DRY_RUN,
+    CONF_FACADE,
     CONF_FOV_LEFT,
     CONF_FOV_RIGHT,
     CONF_HEAT_BELOW,
+    CONF_HOUSE_ORIENTATION,
     CONF_IGNORED_COVERS,
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
@@ -56,6 +58,7 @@ from .const import (
     DOMAIN,
     SUBENTRY_TYPE_COVER,
     CoverType,
+    Facade,
     StormAction,
 )
 
@@ -122,6 +125,9 @@ def _hub_schema(
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor", "weather"])
             ),
+            vol.Required(
+                CONF_HOUSE_ORIENTATION, default=default(CONF_HOUSE_ORIENTATION)
+            ): _number(0, 359, 1, "°"),
             vol.Required(CONF_COOL_ABOVE, default=default(CONF_COOL_ABOVE)): _number(
                 -20, 50, 0.5, "°C"
             ),
@@ -328,8 +334,18 @@ class CoverSubentryFlow(ConfigSubentryFlow):
                 )
             ),
             vol.Required(
-                CONF_AZIMUTH, default=existing.get(CONF_AZIMUTH, 180)
-            ): _number(0, 359, 1, "°"),
+                CONF_FACADE,
+                default=existing.get(CONF_FACADE, Facade.SOUTH),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[f.value for f in Facade],
+                    translation_key="facade",
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
+            vol.Optional(CONF_AZIMUTH, description=suggest(CONF_AZIMUTH)): _number(
+                0, 359, 1, "°"
+            ),
             vol.Required(
                 CONF_WINDOW_HEIGHT, default=existing.get(CONF_WINDOW_HEIGHT, 1.5)
             ): _number(0.1, 10, 0.05, "m"),
