@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **The debug view shows the angle the sun strikes the window at.** It is what
+  decides how far the sun reaches into the room, so the depth shown next to it
+  was a number with nothing behind it: the same elevation far off to the side
+  hardly enters at all. The decision sensor carries it as the `profile_angle`
+  attribute.
+
 ## 1.5.2 - 2026-09-22
 
 ### Fixed

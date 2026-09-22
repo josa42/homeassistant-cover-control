@@ -35,6 +35,7 @@ const LABELS = {
     blockedBy: "Blocked by",
     episode: "Episode running",
     sunOnWindow: "Sun on the window",
+    profileAngle: "Angle of the sun on the window",
     penetration: "Sun reaches into the room",
     outdoor: "Outdoor temperature",
     indoor: "Indoor temperature",
@@ -82,6 +83,7 @@ const LABELS = {
     blockedBy: "Blockiert durch",
     episode: "Episode läuft",
     sunOnWindow: "Sonne auf dem Fenster",
+    profileAngle: "Winkel der Sonne auf dem Fenster",
     penetration: "Sonneneinfall in den Raum",
     outdoor: "Außentemperatur",
     indoor: "Innentemperatur",
@@ -214,14 +216,16 @@ function attributeRows(entity, t) {
     ["blocked_by", t.blockedBy],
     ["episode_active", t.episode],
     ["sun_on_window", t.sunOnWindow],
+    ["profile_angle", t.profileAngle],
     ["penetration_depth", t.penetration],
   ];
+  const suffixes = { profile_angle: "\u00b0", penetration_depth: " m" };
   return rows.map(([attribute, name]) => ({
     type: "attribute",
     entity,
     attribute,
     name,
-    ...(attribute === "penetration_depth" ? { suffix: " m" } : {}),
+    ...(suffixes[attribute] ? { suffix: suffixes[attribute] } : {}),
   }));
 }
 

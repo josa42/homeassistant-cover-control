@@ -223,6 +223,9 @@
           "sun_on_window": {
             "name": "Sun on the window"
           },
+          "profile_angle": {
+            "name": "Angle of the sun on the window"
+          },
           "penetration_depth": {
             "name": "Sun reaches into the room"
           },

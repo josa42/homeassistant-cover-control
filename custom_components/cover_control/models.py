@@ -117,6 +117,11 @@ class Decision:
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
             "sun_on_window": self.geometry.get("sun_on_window"),
+            # The angle the sun actually strikes the window at, which is what
+            # decides how far in it reaches: the same elevation far off to the
+            # side hardly enters at all. Without it the depth below is a number
+            # with nothing behind it.
+            "profile_angle": self.geometry.get("profile_angle"),
             "penetration_depth": self.geometry.get("penetration_depth"),
             "outdoor_temp": self.inputs.get("outdoor_temp"),
             "indoor_temp": self.inputs.get("indoor_temp"),

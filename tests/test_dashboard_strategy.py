@@ -291,3 +291,99 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
         "binary_sensor.az_override": "Manueller Eingriff",
         "binary_sensor.az_paused": "Pausiert",
     }
+
+
+def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
+    """The debug view is the whole reason the decision record is compact.
+
+    The expected keys come from the decision itself, so an attribute added
+    there later fails this test until the debug view shows it too, as a row or
+    inside one of the card templates.
+    """
+    import datetime
+    import json
+    import shutil
+    import subprocess
+
+    from custom_components.cover_control.const import Intent, Reason
+    from custom_components.cover_control.models import Decision
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    expected = set(
+        Decision(
+            timestamp=datetime.datetime.now(datetime.UTC),
+            cover_entity="cover.az",
+            intent=Intent.COOLING,
+            reason=Reason.SHADING,
+            message="",
+        ).as_attributes()
+    )
+    # The strategy reads this one to find the cover; it is plumbing, not a
+    # number anybody debugs with.
+    expected.discard("cover_entity")
+
+    decision = "sensor.az_decision"
+    hass = {
+        "locale": {"language": "en"},
+        "devices": {
+            "hub": {"id": "hub", "name": "Cover Control", "via_device_id": None},
+            "az": {"id": "az", "name": "Arbeitszimmer Raffstore", "via_device_id": "hub"},
+        },
+        # The hub needs an entity of its own: a device is only read as a cover
+        # when the device it hangs off carries entities too.
+        "entities": {
+            "switch.cc_enabled": {
+                "entity_id": "switch.cc_enabled",
+                "platform": "cover_control",
+                "device_id": "hub",
+                "translation_key": "enabled",
+            },
+            decision: {
+                "entity_id": decision,
+                "platform": "cover_control",
+                "device_id": "az",
+                "translation_key": "decision",
+            },
+        },
+        "states": {
+            "switch.cc_enabled": {
+                "entity_id": "switch.cc_enabled",
+                "state": "on",
+                "attributes": {},
+            },
+            decision: {
+                "entity_id": decision,
+                "state": "cooling",
+                "attributes": {"cover_entity": "cover.az"},
+            },
+        },
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    debug = next(
+        view for view in json.loads(result.stdout)["views"] if view["path"] == "debug"
+    )
+    cards = [card for section in debug["sections"] for card in section["cards"]]
+
+    rows = [
+        row
+        for card in cards
+        for row in card.get("entities", [])
+        if isinstance(row, dict) and row.get("type") == "attribute"
+    ]
+    shown = {row["attribute"] for row in rows}
+    templates = "\n".join(card.get("content", "") for card in cards)
+    shown |= {name for name in expected if f"'{name}'" in templates}
+
+    assert expected - shown == set(), "decision attributes missing from the debug view"
+    assert all(row.get("name") for row in rows), "every row needs a readable name"
+    angle = next(row for row in rows if row["attribute"] == "profile_angle")
+    assert angle["name"] == "Angle of the sun on the window"
+    assert angle["suffix"] == "°"

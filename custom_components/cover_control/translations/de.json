@@ -223,6 +223,9 @@
           "sun_on_window": {
             "name": "Sonne auf dem Fenster"
           },
+          "profile_angle": {
+            "name": "Winkel der Sonne auf dem Fenster"
+          },
           "penetration_depth": {
             "name": "Sonneneinfall in den Raum"
           },
