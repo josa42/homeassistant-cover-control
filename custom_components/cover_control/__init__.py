@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 STRATEGY_URL_PATH = "/cover-control/cover-control-dashboard.js"
-STRATEGY_VERSION = "1.5.2"
+STRATEGY_VERSION = "1.6.0"
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
