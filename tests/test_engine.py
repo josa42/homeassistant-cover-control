@@ -725,3 +725,29 @@ def test_a_roller_shutter_steps_by_glass_and_not_by_travel() -> None:
     )
     assert decision.geometry["glass_fraction"] == 0.5
     assert decision.target_position == 62
+
+
+def test_a_cover_can_step_differently_from_the_rest_of_the_house() -> None:
+    """The hub value is the house default; a window may disagree with it."""
+    decision, _ = run(
+        hub={CONF_SHADING_STEP: 25},
+        cover={CONF_SHADING_STEP: 50},
+    )
+    assert decision.geometry["shading_step"] == 50
+
+
+def test_a_cover_with_no_step_of_its_own_follows_the_hub() -> None:
+    decision, _ = run(hub={CONF_SHADING_STEP: 25}, cover={CONF_SHADING_STEP: None})
+    assert decision.geometry["shading_step"] == 25
+
+
+def test_one_cover_can_switch_stepping_off_while_the_rest_keep_it() -> None:
+    """0 is a real value, not an empty field, so it has to win over the hub."""
+    stepped, _ = run(hub={CONF_SHADING_STEP: 25}, sun_elevation=35.0)
+    smooth, _ = run(
+        hub={CONF_SHADING_STEP: 25}, cover={CONF_SHADING_STEP: 0}, sun_elevation=35.0
+    )
+    assert stepped.geometry["glass_fraction"] == 0.25
+    assert smooth.geometry["glass_fraction"] == smooth.geometry[
+        "required_glass_fraction"
+    ]

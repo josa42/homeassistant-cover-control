@@ -106,6 +106,7 @@
             "window_height": "Fensterhöhe",
             "sill_height": "Brüstungshöhe über dem Boden",
             "max_penetration_depth": "Erlaubte Sonneneinfall-Tiefe in den Raum",
+            "shading_step": "Schrittweite der Beschattung (optional)",
             "fov_left": "Sichtfeld nach links",
             "fov_right": "Sichtfeld nach rechts",
             "storm_action": "Bei Sturm",
@@ -124,7 +125,8 @@
             "shade_with_window_open": "Aus lässt den Rollladen bei offenem Fenster in Ruhe. Nur für Fenster einschalten, die gekippt statt weit geöffnet werden, denn ein Kontakt kann beides nicht unterscheiden.",
             "seating_point": "Position, ab der das Glas vollständig verdeckt ist. Leer lassen, um den Standardwert des Typs zu verwenden. Zum Ermitteln den Rollladen langsam herunterfahren, bis der Lichtspalt unten verschwindet.",
             "indoor_temp_entity": "Ein Sensor, oder eine Klima-Entität, deren aktuelle Temperatur verwendet wird.",
-            "dry_run": "Ermittelt, was passieren würde, ohne diesen Rollladen zu bewegen. Entscheidungssensor, Dashboard und Benachrichtigungen melden weiter, sodass du es einige sonnige Tage beobachten kannst."
+            "dry_run": "Ermittelt, was passieren würde, ohne diesen Rollladen zu bewegen. Entscheidungssensor, Dashboard und Benachrichtigungen melden weiter, sodass du es einige sonnige Tage beobachten kannst.",
+            "shading_step": "Überschreibt die Schrittweite vom Hub nur für diesen Rollladen. Leer lassen, um den gemeinsamen Wert zu verwenden. 0 lässt diesen einen Rollladen der Sonne prozentweise folgen, während die anderen stufen."
           }
         }
       },

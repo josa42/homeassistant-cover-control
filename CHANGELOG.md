@@ -24,6 +24,13 @@
   behind, and a blank line inside a list ends the list and starts another with a
   paragraph of air between them, which is what the conditions used to look like.
 
+### Fixed
+
+- **The shading step size can be overridden per cover, as it was meant to be.**
+  The engine resolved it cover-first from the day it landed, but only the hub
+  form ever offered the field, so the override existed in code and nowhere a
+  person could reach it. Leave it empty to follow the hub, or set 0 to let one
+  window follow the sun by the percent while the rest keep stepping.
 
 ## 1.8.0 - 2026-09-23
 

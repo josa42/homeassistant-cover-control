@@ -106,6 +106,7 @@
             "window_height": "Window height",
             "sill_height": "Sill height above the floor",
             "max_penetration_depth": "Allowed sun depth into the room",
+            "shading_step": "Shading step size (optional)",
             "fov_left": "Field of view to the left",
             "fov_right": "Field of view to the right",
             "storm_action": "On storm",
@@ -124,7 +125,8 @@
             "shade_with_window_open": "Off leaves the cover alone while the window is open. Turn this on only for windows that are tilted rather than opened wide, since a contact cannot tell the two apart.",
             "seating_point": "Position at which the cover has fully covered the glass. Leave empty to use the cover type default. To measure it, lower the cover slowly until the light gap at the bottom disappears.",
             "indoor_temp_entity": "A sensor, or a climate entity whose current temperature is used.",
-            "dry_run": "Work out what would happen without moving this cover. The decision sensor, the dashboard and the notifications all keep reporting, so you can watch it for a few sunny days before handing over control."
+            "dry_run": "Work out what would happen without moving this cover. The decision sensor, the dashboard and the notifications all keep reporting, so you can watch it for a few sunny days before handing over control.",
+            "shading_step": "Overrides the step size from the hub for this cover only. Leave empty to use the shared one. 0 makes this cover follow the sun by the percent while the rest keep stepping."
           }
         }
       },

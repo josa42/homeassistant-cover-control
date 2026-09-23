@@ -17,6 +17,7 @@ from custom_components.cover_control.const import (
     CONF_OUTDOOR_TEMP,
     CONF_SEATING_POINT,
     CONF_SHADED_TILT,
+    CONF_SHADING_STEP,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
     CONF_WEATHER,
@@ -228,3 +229,24 @@ async def test_seating_point_override_is_optional(hass: HomeAssistant) -> None:
         },
     )
     assert CONF_SEATING_POINT not in result["data"]
+
+
+async def test_a_cover_can_be_given_its_own_shading_step(hass: HomeAssistant) -> None:
+    """A hub value a cover may override needs somewhere to override it.
+
+    Regression: the step size was resolved cover-first by the engine from the
+    day it landed, but the cover form never offered the field, so the override
+    existed only in code.
+    """
+    entry = MockConfigEntry(domain=DOMAIN, data=HUB_INPUT)
+    entry.add_to_hass(hass)
+    hass.states.async_set("cover.raffstore", "open", {"supported_features": 255})
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "cover"), context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_COVER_ENTITY: "cover.raffstore"}
+    )
+
+    assert CONF_SHADING_STEP in schema_fields(result["data_schema"])

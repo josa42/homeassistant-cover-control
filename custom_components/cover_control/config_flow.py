@@ -363,6 +363,9 @@ class CoverSubentryFlow(ConfigSubentryFlow):
             vol.Required(
                 CONF_MAX_DEPTH, default=existing.get(CONF_MAX_DEPTH, 0.0)
             ): _number(0, 10, 0.1, "m"),
+            vol.Optional(
+                CONF_SHADING_STEP, description=suggest(CONF_SHADING_STEP)
+            ): _number(0, 50, 5, "%"),
             vol.Required(
                 CONF_FOV_LEFT, default=existing.get(CONF_FOV_LEFT, 90)
             ): _number(0, 90, 1, "°"),
