@@ -575,10 +575,105 @@ def test_every_cover_gets_its_own_view_linked_from_the_overview(tmp_path) -> Non
         for card in section["cards"]
         if card.get("tap_action", {}).get("action") == "navigate"
     ]
-    assert sorted(links) == sorted(paths), "every cover is reachable from the overview"
+    # Twice each: the overview carries every cover in both halves and lets the
+    # visibility conditions decide which one the reader sees.
+    assert sorted(set(links)) == sorted(paths), "every cover is reachable from the overview"
+    assert sorted(links) == sorted(paths + paths), "a cover is missing from a half"
 
     # And nothing to operate a single cover with sits on the overview.
     overview_cards = [c for s in overview["sections"] for c in s["cards"]]
     assert not any(card.get("features") for card in overview_cards), (
         "the overview grew a cover control again"
     )
+
+
+def test_the_overview_splits_covers_by_whether_they_are_driven(tmp_path) -> None:
+    """Which covers are being shaded right now is what this view is opened with.
+
+    The split is left to visibility conditions rather than settled while the
+    views are built, because the strategy runs when the dashboard opens and a
+    cover that starts shading a minute later would sit under the wrong
+    heading until the page was reloaded.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    from custom_components.cover_control.const import Intent
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    entities, states = {}, {}
+    for slug, device in (("cc", "hub"), ("az", "az")):
+        entities[f"switch.{slug}_enabled"] = {
+            "entity_id": f"switch.{slug}_enabled", "platform": "cover_control",
+            "device_id": device, "translation_key": "enabled",
+        }
+        states[f"switch.{slug}_enabled"] = {
+            "entity_id": f"switch.{slug}_enabled", "state": "on", "attributes": {},
+        }
+    entities["sensor.az_decision"] = {
+        "entity_id": "sensor.az_decision", "platform": "cover_control",
+        "device_id": "az", "translation_key": "decision",
+    }
+    states["sensor.az_decision"] = {
+        "entity_id": "sensor.az_decision", "state": "cooling",
+        "attributes": {"cover_entity": "cover.az"},
+    }
+
+    hass = {
+        "locale": {"language": "de"},
+        "devices": {
+            "hub": {"id": "hub", "name": "Cover Control", "via_device_id": None},
+            "az": {"id": "az", "name": "Arbeitszimmer Raffstore", "via_device_id": "hub"},
+        },
+        "entities": entities,
+        "states": states,
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    overview = json.loads(result.stdout)["views"][0]
+
+    halves = {
+        section["cards"][0]["heading"]: section
+        for section in overview["sections"]
+        if section["cards"][0].get("heading") in ("Wird gerade gestellt", "Bleibt in Ruhe")
+    }
+    assert set(halves) == {"Wird gerade gestellt", "Bleibt in Ruhe"}
+
+    # The intent, not the switches behind it: the engine has already weighed
+    # those, and the states here have to stay the ones it actually reports.
+    driven = ["storm", "cooling", "heating"]
+    assert set(driven) <= {intent.value for intent in Intent}, "an intent was renamed"
+
+    held = halves["Wird gerade gestellt"]["cards"][1]
+    assert held["visibility"] == [
+        {"condition": "state", "entity": "sensor.az_decision", "state": driven}
+    ]
+
+    # state_not rather than a list of the other intents, so a sensor that is
+    # unavailable still lands in exactly one half instead of dropping out of
+    # both.
+    loose = halves["Bleibt in Ruhe"]["cards"][1]
+    assert loose["visibility"] == [
+        {"condition": "state", "entity": "sensor.az_decision", "state_not": driven}
+    ], "the halves are not complements"
+
+    # Both headings would otherwise stand over nothing half the time.
+    assert halves["Wird gerade gestellt"]["visibility"] == [
+        {"condition": "or", "conditions": held["visibility"]}
+    ]
+    assert halves["Bleibt in Ruhe"]["visibility"] == [
+        {"condition": "or", "conditions": loose["visibility"]}
+    ]
+
+    # Names are the reason the tiles span the section: "Arbeitszimmer
+    # Raffstore" is cut off mid-word at half a width.
+    assert held["grid_options"] == {"columns": 12}
+    assert loose["grid_options"] == {"columns": 12}

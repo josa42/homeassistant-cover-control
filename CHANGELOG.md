@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- **The overview splits the covers in two:** the ones being positioned right
+  now and the ones left alone. A tile sitting at 100 % says nothing about
+  whether the engine put it there or is leaving it where it is, and which
+  covers are being shaded is the question the view is opened with. The split
+  reads the decision sensor's intent, so shading, solar heating and storm
+  protection count and the rest do not, and the dashboard decides it rather
+  than the strategy: a cover that starts shading a minute later moves across
+  on its own, without a reload.
+
+- **A cover tile spans the width of its section**, because a name like
+  `Wohnzimmer Raffstore Süd` was cut off mid-word at half of one.
+
 ### Fixed
 
 - **The window condition reads the gate, not the contact.** A cover set to keep

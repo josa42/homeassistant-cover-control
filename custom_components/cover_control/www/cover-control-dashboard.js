@@ -37,7 +37,8 @@ const LABELS = {
     evResumed: "resumed",
     evOverride: "moved by hand to",
     evSlats: "slats",
-    covers: "Covers",
+    coversHeld: "Being positioned",
+    coversLoose: "Left alone",
     details: "Details",
     noCoverNeeded: "no cover needed",
     ofAllowed: "of",
@@ -112,7 +113,8 @@ const LABELS = {
     evResumed: "fortgesetzt",
     evOverride: "von Hand bewegt auf",
     evSlats: "Lamellen",
-    covers: "Rollläden",
+    coversHeld: "Wird gerade gestellt",
+    coversLoose: "Bleibt in Ruhe",
     details: "Details",
     noCoverNeeded: "kein Behang nötig",
     ofAllowed: "von",
@@ -374,6 +376,54 @@ function viewPath(name, taken) {
   return path;
 }
 
+/**
+ * The intents where the engine is holding the cover at a position it worked
+ * out for it: shading, letting the winter sun in, and getting out of a storm.
+ *
+ * The rest are covers it is not driving: open because nothing calls for
+ * cover, or switched off, paused, moved by hand, or waiting on a window.
+ */
+const DRIVEN = ["storm", "cooling", "heating"];
+
+/**
+ * Whether the engine is positioning this cover right now.
+ *
+ * Off the decision sensor's own state, which is the intent, rather than off
+ * the switches behind it: the engine has already weighed them, and a second
+ * reading of the same thing is a second answer waiting to disagree.
+ *
+ * Read as a visibility condition rather than settled here: a strategy runs
+ * when the dashboard opens, and a cover that starts shading a minute later
+ * would sit under the wrong heading until somebody reloaded the page.
+ */
+function drivenCondition(cover) {
+  const decision = pick(cover, "decision", "sensor");
+  if (!decision) return null;
+  return { condition: "state", entity: decision.entity, state: DRIVEN };
+}
+
+/**
+ * The same condition turned around.
+ *
+ * state_not rather than a list of the other intents, so a sensor that is
+ * unavailable still lands in exactly one half: the two are complements and
+ * every cover shows up once.
+ */
+function notDriven({ entity }) {
+  return { condition: "state", entity, state_not: DRIVEN };
+}
+
+/** A section shown only while one of its cards is, so no heading stands alone. */
+function whileAnyCardShows(cards) {
+  if (cards.some((card) => !card.visibility)) return {};
+  const conditions = cards.map((card) =>
+    card.visibility.length === 1
+      ? card.visibility[0]
+      : { condition: "and", conditions: card.visibility },
+  );
+  return { visibility: [{ condition: "or", conditions }] };
+}
+
 function overviewView(hub, covers, t) {
   const sections = [];
 
@@ -402,20 +452,46 @@ function overviewView(hub, covers, t) {
   // One tile per cover, and nothing to operate: the question this view answers
   // is which cover is in which state. Everything about one of them, including
   // its buttons, is a tap away in its own view.
-  const cards = [{ type: "heading", heading: t.covers }];
+  //
+  // Split in two, because which covers are being shaded right now is the
+  // question this view is opened with, and a tile sitting at 100% says
+  // nothing about whether the engine put it there or is leaving it alone.
+  // Every cover is in both halves and the conditions decide which one shows.
+  const held = [];
+  const loose = [];
   for (const cover of covers) {
     if (!cover.coverEntity) continue;
-    cards.push({
+    const tile = {
       type: "tile",
       entity: cover.coverEntity,
       name: cover.name,
       state_content: ["state", "current_position"],
+      // The full width of the section: at half of it a name like
+      // "Wohnzimmer Raffstore Süd" is cut off mid-word.
+      grid_options: { columns: 12 },
       ...(cover.dryRun ? { icon: "mdi:test-tube" } : {}),
       tap_action: { action: "navigate", navigation_path: cover.viewPath },
       icon_tap_action: { action: "navigate", navigation_path: cover.viewPath },
+    };
+    const driven = drivenCondition(cover);
+    // Nothing to read the intent off: it cannot be shown as left alone, so it
+    // stays with the rest rather than going missing from both halves.
+    if (!driven) {
+      held.push(tile);
+      continue;
+    }
+    held.push({ ...tile, visibility: [driven] });
+    loose.push({ ...tile, visibility: [notDriven(driven)] });
+  }
+
+  for (const [heading, cards] of [[t.coversHeld, held], [t.coversLoose, loose]]) {
+    if (cards.length === 0) continue;
+    sections.push({
+      type: "grid",
+      ...whileAnyCardShows(cards),
+      cards: [{ type: "heading", heading }, ...cards],
     });
   }
-  if (cards.length > 1) sections.push({ type: "grid", cards });
 
   return {
     title: t.overview,
