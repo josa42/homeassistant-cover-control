@@ -24,6 +24,17 @@
   behind, and a blank line inside a list ends the list and starts another with a
   paragraph of air between them, which is what the conditions used to look like.
 
+- **The slat angle is set once for the house.** It was a required field on
+  every cover, so the same number had to be typed per window and changing your
+  mind meant editing all of them. It lives on the hub now and a cover may still
+  override it, which is the way round the other shared settings already work.
+
+  The default moved from 45 to **50**: half closed stops direct sun and lets
+  noticeably more light through than an angle picked to shut it out. Covers
+  already carrying an angle keep it, because what used to be the field is now
+  the override.
+
+
 - **The overview is a list of states, and every cover has its own page.** It
   answers one question now: which cover is in which state. The controls for a
   single cover moved off it, and the central ones stayed, because switching the

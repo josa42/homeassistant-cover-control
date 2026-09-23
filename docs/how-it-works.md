@@ -41,6 +41,7 @@ Set once on the hub, inherited by every cover, and overridable per cover:
   threshold before a running episode ends
 - **Shading step size**, so shading moves in steps instead of following the
   sun by the percent
+- **Slat angle while shading**, overridable per cover
 - **Orientation of the south side**, its compass bearing, from which each
   cover's window bearing is worked out. Not overridden
   per cover like the rest of this list; a window that needs its own bearing

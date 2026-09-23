@@ -536,7 +536,7 @@ def evaluate(
 
     # --- geometry decides the number ---------------------------------------
     seating = _seating_point(config)
-    tilt_angle = int(_cover_setting(config, CONF_SHADED_TILT))
+    tilt_angle = int(config.get(CONF_SHADED_TILT))
 
     if desired is Intent.HEATING:
         geom["penetration_depth"] = round(

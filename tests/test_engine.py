@@ -751,3 +751,25 @@ def test_one_cover_can_switch_stepping_off_while_the_rest_keep_it() -> None:
     assert smooth.geometry["glass_fraction"] == smooth.geometry[
         "required_glass_fraction"
     ]
+
+
+# --- the slat angle ---------------------------------------------------------
+
+
+def test_the_slat_angle_comes_from_the_hub() -> None:
+    """One angle for the house, so it is not set once per window."""
+    decision, _ = run(
+        hub={CONF_SHADED_TILT: 30}, cover={CONF_SHADED_TILT: None}
+    )
+    assert decision.target_tilt == 30
+
+
+def test_a_cover_can_override_the_slat_angle() -> None:
+    decision, _ = run(hub={CONF_SHADED_TILT: 30}, cover={CONF_SHADED_TILT: 80})
+    assert decision.target_tilt == 80
+
+
+def test_the_slat_angle_defaults_to_half_closed() -> None:
+    """Enough to stop direct sun, far more light than shutting it out."""
+    decision, _ = run(hub={CONF_SHADED_TILT: None}, cover={CONF_SHADED_TILT: None})
+    assert decision.target_tilt == 50

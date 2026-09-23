@@ -193,6 +193,7 @@ OVERRIDABLE = (
     CONF_INDOOR_HEAT_BELOW,
     CONF_TEMP_HYSTERESIS,
     CONF_SHADING_STEP,
+    CONF_SHADED_TILT,
     CONF_PV_THRESHOLD,
     CONF_PV_OVERRIDE,
     CONF_WEATHER_STATES,
@@ -211,6 +212,9 @@ DEFAULTS: dict[str, object] = {
     # A quarter of the glass per step. Fewer and larger movements, at the
     # cost of up to one step more covering than the depth rule asks for.
     CONF_SHADING_STEP: 25.0,
+    # Half closed: enough to stop direct sun, far more light than a slat
+    # angle chosen to shut it out entirely.
+    CONF_SHADED_TILT: 50,
     CONF_PV_THRESHOLD: 800.0,
     CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
@@ -228,7 +232,6 @@ COVER_DEFAULTS: dict[str, object] = {
     CONF_MAX_DEPTH: 0.0,
     CONF_SILL_HEIGHT: 0.0,
     CONF_FACADE: Facade.SOUTH,
-    CONF_SHADED_TILT: 45,
     CONF_SHADE_WINDOW_OPEN: False,
     CONF_STORM_ACTION: StormAction.IGNORE,
     CONF_COVER_TYPE: CoverType.OTHER,

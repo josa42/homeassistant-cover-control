@@ -149,6 +149,9 @@ def _hub_schema(
                 CONF_SHADING_STEP, default=default(CONF_SHADING_STEP)
             ): _number(0, 50, 5, "%"),
             vol.Required(
+                CONF_SHADED_TILT, default=default(CONF_SHADED_TILT)
+            ): _number(0, 100, 1, "%"),
+            vol.Required(
                 CONF_PV_THRESHOLD, default=default(CONF_PV_THRESHOLD)
             ): _number(0, 30000, 50, "W"),
             vol.Required(CONF_PV_OVERRIDE, default=default(CONF_PV_OVERRIDE)): _number(
@@ -405,9 +408,7 @@ class CoverSubentryFlow(ConfigSubentryFlow):
         }
         if supports_tilt:
             fields[
-                vol.Required(
-                    CONF_SHADED_TILT, default=existing.get(CONF_SHADED_TILT, 45)
-                )
+                vol.Optional(CONF_SHADED_TILT, description=suggest(CONF_SHADED_TILT))
             ] = _number(0, 100, 1, "%")
 
         return self.async_show_form(

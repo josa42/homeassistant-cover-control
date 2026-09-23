@@ -16,6 +16,7 @@
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
           "temp_hysteresis": "Temperatur-Hysterese",
           "shading_step": "Schrittweite der Beschattung",
+          "shaded_tilt": "Lamellenwinkel beim Beschatten",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -33,7 +34,8 @@
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
           "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
           "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab.",
-          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab."
+          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab.",
+          "shaded_tilt": "0 schließt die Lamellen, 100 öffnet sie. Halb geschlossen hält die direkte Sonne draußen und lässt deutlich mehr Licht durch als ein Winkel, der sie ganz aussperrt. Rollläden ohne Lamellen ignorieren es."
         }
       }
     },
@@ -58,6 +60,7 @@
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
           "temp_hysteresis": "Temperatur-Hysterese",
           "shading_step": "Schrittweite der Beschattung",
+          "shaded_tilt": "Lamellenwinkel beim Beschatten",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -75,7 +78,8 @@
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
           "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
           "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab.",
-          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab."
+          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab.",
+          "shaded_tilt": "0 schließt die Lamellen, 100 öffnet sie. Halb geschlossen hält die direkte Sonne draußen und lässt deutlich mehr Licht durch als ein Winkel, der sie ganz aussperrt. Rollläden ohne Lamellen ignorieren es."
         }
       }
     }
@@ -114,7 +118,7 @@
             "window_sensor_entity": "Fensterkontakt (optional)",
             "shade_with_window_open": "Bei offenem Fenster weiter beschatten",
             "seating_point": "Aufsetzpunkt überschreiben (optional)",
-            "shaded_tilt": "Lamellenwinkel während der Beschattung",
+            "shaded_tilt": "Lamellenwinkel beim Beschatten (optional)",
             "dry_run": "Testlauf"
           },
           "data_description": {
@@ -126,7 +130,8 @@
             "seating_point": "Position, ab der das Glas vollständig verdeckt ist. Leer lassen, um den Standardwert des Typs zu verwenden. Zum Ermitteln den Rollladen langsam herunterfahren, bis der Lichtspalt unten verschwindet.",
             "indoor_temp_entity": "Ein Sensor, oder eine Klima-Entität, deren aktuelle Temperatur verwendet wird.",
             "dry_run": "Ermittelt, was passieren würde, ohne diesen Rollladen zu bewegen. Entscheidungssensor, Dashboard und Benachrichtigungen melden weiter, sodass du es einige sonnige Tage beobachten kannst.",
-            "shading_step": "Überschreibt die Schrittweite vom Hub nur für diesen Rollladen. Leer lassen, um den gemeinsamen Wert zu verwenden. 0 lässt diesen einen Rollladen der Sonne prozentweise folgen, während die anderen stufen."
+            "shading_step": "Überschreibt die Schrittweite vom Hub nur für diesen Rollladen. Leer lassen, um den gemeinsamen Wert zu verwenden. 0 lässt diesen einen Rollladen der Sonne prozentweise folgen, während die anderen stufen.",
+            "shaded_tilt": "Überschreibt den gemeinsamen Winkel nur für diesen Rollladen. Leer lassen, um den gemeinsamen zu verwenden."
           }
         }
       },

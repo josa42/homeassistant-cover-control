@@ -250,3 +250,21 @@ async def test_a_cover_can_be_given_its_own_shading_step(hass: HomeAssistant) ->
     )
 
     assert CONF_SHADING_STEP in schema_fields(result["data_schema"])
+
+
+async def test_the_slat_angle_is_an_optional_override_on_a_cover(
+    hass: HomeAssistant,
+) -> None:
+    """It is the hub's value now, so a cover may leave the field empty."""
+    entry = MockConfigEntry(domain=DOMAIN, data=HUB_INPUT)
+    entry.add_to_hass(hass)
+    hass.states.async_set("cover.raffstore", "open", {"supported_features": 255})
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "cover"), context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_COVER_ENTITY: "cover.raffstore"}
+    )
+    key = next(k for k in result["data_schema"].schema if str(k) == CONF_SHADED_TILT)
+    assert isinstance(key, vol.Optional), "a cover must be able to leave it empty"

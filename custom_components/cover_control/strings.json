@@ -16,6 +16,7 @@
           "indoor_heat_below": "Indoor temperature confirms heating below",
           "temp_hysteresis": "Temperature hysteresis",
           "shading_step": "Shading step size",
+          "shaded_tilt": "Slat angle while shading",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -33,7 +34,8 @@
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
           "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
           "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off.",
-          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off."
+          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off.",
+          "shaded_tilt": "0 closes the slats, 100 opens them. Half closed keeps direct sun out while letting far more light through than an angle chosen to shut it out entirely. Covers without slats ignore it."
         }
       }
     },
@@ -58,6 +60,7 @@
           "indoor_heat_below": "Indoor temperature confirms heating below",
           "temp_hysteresis": "Temperature hysteresis",
           "shading_step": "Shading step size",
+          "shaded_tilt": "Slat angle while shading",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -75,7 +78,8 @@
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
           "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
           "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off.",
-          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off."
+          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off.",
+          "shaded_tilt": "0 closes the slats, 100 opens them. Half closed keeps direct sun out while letting far more light through than an angle chosen to shut it out entirely. Covers without slats ignore it."
         }
       }
     }
@@ -114,7 +118,7 @@
             "window_sensor_entity": "Window contact (optional)",
             "shade_with_window_open": "Keep shading while the window is open",
             "seating_point": "Seating point override (optional)",
-            "shaded_tilt": "Slat angle while shading",
+            "shaded_tilt": "Slat angle while shading (optional)",
             "dry_run": "Dry run"
           },
           "data_description": {
@@ -126,7 +130,8 @@
             "seating_point": "Position at which the cover has fully covered the glass. Leave empty to use the cover type default. To measure it, lower the cover slowly until the light gap at the bottom disappears.",
             "indoor_temp_entity": "A sensor, or a climate entity whose current temperature is used.",
             "dry_run": "Work out what would happen without moving this cover. The decision sensor, the dashboard and the notifications all keep reporting, so you can watch it for a few sunny days before handing over control.",
-            "shading_step": "Overrides the step size from the hub for this cover only. Leave empty to use the shared one. 0 makes this cover follow the sun by the percent while the rest keep stepping."
+            "shading_step": "Overrides the step size from the hub for this cover only. Leave empty to use the shared one. 0 makes this cover follow the sun by the percent while the rest keep stepping.",
+            "shaded_tilt": "Overrides the shared angle for this cover only. Leave empty to use it."
           }
         }
       },
