@@ -14,6 +14,7 @@
           "heat_below": "Sonnenheizen unter",
           "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
+          "temp_hysteresis": "Temperatur-Hysterese",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -29,7 +30,8 @@
           "pv_threshold": "Wird nur verwendet, wenn ein PV-Leistungssensor eingetragen ist.",
           "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen.",
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
-          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden."
+          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
+          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab."
         }
       }
     },
@@ -52,6 +54,7 @@
           "heat_below": "Sonnenheizen unter",
           "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
+          "temp_hysteresis": "Temperatur-Hysterese",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -67,7 +70,8 @@
           "pv_threshold": "Wird nur verwendet, wenn ein PV-Leistungssensor eingetragen ist.",
           "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen.",
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
-          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden."
+          "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
+          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab."
         }
       }
     }

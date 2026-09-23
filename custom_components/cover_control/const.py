@@ -147,6 +147,7 @@ CONF_COOL_ABOVE = "cool_above"
 CONF_HEAT_BELOW = "heat_below"
 CONF_INDOOR_COOL_ABOVE = "indoor_cool_above"
 CONF_INDOOR_HEAT_BELOW = "indoor_heat_below"
+CONF_TEMP_HYSTERESIS = "temp_hysteresis"
 CONF_PV_THRESHOLD = "pv_threshold"
 CONF_PV_OVERRIDE = "pv_override_threshold"
 CONF_WEATHER_STATES = "allowed_weather_states"
@@ -189,6 +190,7 @@ OVERRIDABLE = (
     CONF_HEAT_BELOW,
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
+    CONF_TEMP_HYSTERESIS,
     CONF_PV_THRESHOLD,
     CONF_PV_OVERRIDE,
     CONF_WEATHER_STATES,
@@ -201,6 +203,9 @@ DEFAULTS: dict[str, object] = {
     CONF_HEAT_BELOW: 12.0,
     CONF_INDOOR_COOL_ABOVE: 23.0,
     CONF_INDOOR_HEAT_BELOW: 21.0,
+    # Half a degree is more than a sensor's noise and less than a change
+    # anybody feels, which is the whole job of this number.
+    CONF_TEMP_HYSTERESIS: 0.5,
     CONF_PV_THRESHOLD: 800.0,
     CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],

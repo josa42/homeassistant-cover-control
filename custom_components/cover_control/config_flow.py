@@ -47,6 +47,7 @@ from .const import (
     CONF_SHADED_TILT,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
+    CONF_TEMP_HYSTERESIS,
     CONF_WEATHER,
     CONF_WEATHER_STATES,
     CONF_WIND_RELEASE,
@@ -140,6 +141,9 @@ def _hub_schema(
             vol.Required(
                 CONF_INDOOR_HEAT_BELOW, default=default(CONF_INDOOR_HEAT_BELOW)
             ): _number(0, 40, 0.5, "°C"),
+            vol.Required(
+                CONF_TEMP_HYSTERESIS, default=default(CONF_TEMP_HYSTERESIS)
+            ): _number(0, 5, 0.1, "°C"),
             vol.Required(
                 CONF_PV_THRESHOLD, default=default(CONF_PV_THRESHOLD)
             ): _number(0, 30000, 50, "W"),

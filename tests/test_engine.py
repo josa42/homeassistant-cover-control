@@ -12,7 +12,9 @@ from custom_components.cover_control.const import (
     CONF_COOL_ABOVE,
     CONF_COVER_TYPE,
     CONF_FACADE,
+    CONF_HEAT_BELOW,
     CONF_HOUSE_ORIENTATION,
+    CONF_INDOOR_COOL_ABOVE,
     CONF_MAX_DEPTH,
     CONF_PV_OVERRIDE,
     CONF_PV_THRESHOLD,
@@ -21,6 +23,7 @@ from custom_components.cover_control.const import (
     CONF_SHADED_TILT,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
+    CONF_TEMP_HYSTERESIS,
     CONF_WEATHER_STATES,
     CONF_WIND_RELEASE,
     CONF_WIND_THRESHOLD,
@@ -600,3 +603,71 @@ def test_a_cover_set_up_before_the_house_was_keeps_its_bearing() -> None:
     assert CONF_AZIMUTH in COVER and CONF_FACADE not in COVER
     decision, _ = run(hub={CONF_HOUSE_ORIENTATION: 195.0})
     assert decision.geometry["window_azimuth"] == COVER[CONF_AZIMUTH]
+
+
+# --- hysteresis -------------------------------------------------------------
+
+
+def test_a_sensor_resting_on_the_threshold_does_not_end_the_episode() -> None:
+    """The case from a real morning: indoor alternating 22.0 / 22.1 against 22.
+
+    Every crossing ended the episode and started it again a few minutes later,
+    so the cover drove its whole travel twice per wobble.
+    """
+    running = EpisodeState(active=True, intent=Intent.COOLING)
+    decision, state = run(
+        running,
+        hub={CONF_INDOOR_COOL_ABOVE: 22.0, CONF_TEMP_HYSTERESIS: 0.5},
+        indoor_temp=22.0,
+    )
+    assert decision.reason is Reason.SHADING, "a tenth of a degree dropped the gates"
+    assert state.gate_false_since is None, "the episode started counting itself out"
+
+
+def test_the_hysteresis_only_holds_an_episode_that_is_already_running() -> None:
+    """Relaxing the threshold before anything runs would just lower it."""
+    decision, state = run(
+        hub={CONF_INDOOR_COOL_ABOVE: 22.0, CONF_TEMP_HYSTERESIS: 0.5},
+        indoor_temp=22.0,
+    )
+    assert decision.intent is Intent.NEUTRAL
+    assert not state.active
+
+
+def test_a_real_drop_still_ends_the_episode() -> None:
+    """Held, not latched: past the relaxed threshold it goes."""
+    running = EpisodeState(active=True, intent=Intent.COOLING)
+    decision, state = run(
+        running,
+        hub={CONF_INDOOR_COOL_ABOVE: 22.0, CONF_TEMP_HYSTERESIS: 0.5},
+        indoor_temp=21.4,
+    )
+    assert decision.reason is Reason.DEBOUNCING, "the gates should have dropped"
+    assert state.gate_false_since == NOW
+
+
+def test_solar_heating_is_held_from_the_other_side() -> None:
+    """Heating starts below a threshold, so its hysteresis relaxes upwards."""
+    running = EpisodeState(active=True, intent=Intent.HEATING)
+    decision, state = run(
+        running,
+        hub={CONF_HEAT_BELOW: 12.0, CONF_TEMP_HYSTERESIS: 0.5},
+        outdoor_temp=12.3,
+        indoor_temp=19.0,
+        forecast_max=12.3,
+    )
+    assert decision.intent is Intent.HEATING
+    assert state.active
+
+
+def test_a_cooling_episode_does_not_relax_the_heating_threshold() -> None:
+    """The hysteresis belongs to the episode that is running, not to both."""
+    running = EpisodeState(active=True, intent=Intent.COOLING)
+    decision, _ = run(
+        running,
+        hub={CONF_HEAT_BELOW: 12.0, CONF_TEMP_HYSTERESIS: 0.5},
+        outdoor_temp=12.3,
+        forecast_max=12.3,
+        indoor_temp=19.0,
+    )
+    assert decision.intent is not Intent.HEATING

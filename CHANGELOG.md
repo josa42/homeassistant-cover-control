@@ -4,18 +4,14 @@
 
 ### Fixed
 
-- **A cover driven fully up is no longer asked for a slat angle.** Its slats
-  are wound into the box, so there is nothing left to turn. The command was a
-  motor run that changed nothing, and on an actuator that puts the angle back
-  to whatever it had before a run it was a second one undoing the first. The
-  end of an episode is one run now.
-
-- **The slats are set before the run, not after it.** An actuator can be set up
-  to restore the angle it had before a run, which turned a tilt sent afterwards
-  into a fight: the cover arrived, the actuator put the old angle back, and the
-  correction put it back again. Three motor runs for one decision. Setting the
-  angle first makes that restore land on the angle that was wanted. An actuator
-  that does not restore is still corrected, on the next evaluation.
+- **A temperature resting on its threshold no longer drives the covers.** A
+  sensor sitting on, say, exactly 22 degrees crosses it on its own noise, and
+  every crossing ended the shading episode and started it again minutes later,
+  so a cover ran its whole travel twice per wobble. The new **Temperature
+  hysteresis** holds a running episode until the reading has fallen back past
+  the threshold by that much. It defaults to 0.5 degrees, applies only while an
+  episode runs, so it never lowers the threshold that starts one, and 0
+  switches it off.
 
 ## 1.7.1 - 2026-09-22
 

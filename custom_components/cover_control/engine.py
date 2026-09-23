@@ -31,6 +31,7 @@ from .const import (
     CONF_SHADED_TILT,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
+    CONF_TEMP_HYSTERESIS,
     CONF_WEATHER_STATES,
     CONF_WIND_RELEASE,
     CONF_WIND_THRESHOLD,
@@ -392,16 +393,28 @@ def evaluate(
     indoor_cool = float(config.get(CONF_INDOOR_COOL_ABOVE))
     indoor_heat = float(config.get(CONF_INDOOR_HEAT_BELOW))
 
-    outdoor_hot = inputs.outdoor_temp is not None and inputs.outdoor_temp > cool_above
-    forecast_hot = inputs.forecast_max is not None and inputs.forecast_max > cool_above
+    # A sensor resting on a threshold crosses it on its own noise, which ends
+    # the episode and starts it again a minute later, all day. While an episode
+    # runs, the thresholds that started it are relaxed by the hysteresis, so
+    # only a real change in temperature ends it.
+    hysteresis = float(config.get(CONF_TEMP_HYSTERESIS))
+    holding_cool = state.active and state.intent is Intent.COOLING
+    holding_heat = state.active and state.intent is Intent.HEATING
+    cool_at = cool_above - hysteresis if holding_cool else cool_above
+    indoor_cool_at = indoor_cool - hysteresis if holding_cool else indoor_cool
+    heat_at = heat_below + hysteresis if holding_heat else heat_below
+    indoor_heat_at = indoor_heat + hysteresis if holding_heat else indoor_heat
+
+    outdoor_hot = inputs.outdoor_temp is not None and inputs.outdoor_temp > cool_at
+    forecast_hot = inputs.forecast_max is not None and inputs.forecast_max > cool_at
     indoor_confirms_cool = (
-        inputs.indoor_temp is None or inputs.indoor_temp > indoor_cool
+        inputs.indoor_temp is None or inputs.indoor_temp > indoor_cool_at
     )
     wants_cooling = (outdoor_hot or forecast_hot) and indoor_confirms_cool
 
-    outdoor_cold = inputs.outdoor_temp is not None and inputs.outdoor_temp < heat_below
+    outdoor_cold = inputs.outdoor_temp is not None and inputs.outdoor_temp < heat_at
     indoor_confirms_heat = (
-        inputs.indoor_temp is None or inputs.indoor_temp < indoor_heat
+        inputs.indoor_temp is None or inputs.indoor_temp < indoor_heat_at
     )
     wants_heating = outdoor_cold and indoor_confirms_heat
 
@@ -410,8 +423,10 @@ def evaluate(
             "temperature",
             wants_cooling or wants_heating,
             f"outdoor {inputs.outdoor_temp} / forecast max {inputs.forecast_max} "
-            f"vs cool>{cool_above} heat<{heat_below}; "
-            f"indoor {inputs.indoor_temp} vs cool>{indoor_cool} heat<{indoor_heat}",
+            f"vs cool>{cool_at} heat<{heat_at}; "
+            f"indoor {inputs.indoor_temp} vs cool>{indoor_cool_at} "
+            f"heat<{indoor_heat_at}"
+            + (f"; held by {hysteresis} C" if holding_cool or holding_heat else ""),
         )
     )
 

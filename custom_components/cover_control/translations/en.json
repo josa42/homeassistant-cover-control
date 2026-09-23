@@ -14,6 +14,7 @@
           "heat_below": "Solar heating below",
           "indoor_cool_above": "Indoor temperature confirms shading above",
           "indoor_heat_below": "Indoor temperature confirms heating below",
+          "temp_hysteresis": "Temperature hysteresis",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -29,7 +30,8 @@
           "pv_threshold": "Only used when a PV power sensor is configured.",
           "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate.",
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
-          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover."
+          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
+          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off."
         }
       }
     },
@@ -52,6 +54,7 @@
           "heat_below": "Solar heating below",
           "indoor_cool_above": "Indoor temperature confirms shading above",
           "indoor_heat_below": "Indoor temperature confirms heating below",
+          "temp_hysteresis": "Temperature hysteresis",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -67,7 +70,8 @@
           "pv_threshold": "Only used when a PV power sensor is configured.",
           "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate.",
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
-          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover."
+          "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
+          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off."
         }
       }
     }
