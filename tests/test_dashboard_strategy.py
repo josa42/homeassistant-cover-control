@@ -321,9 +321,18 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
             message="",
         ).as_attributes()
     )
-    # The strategy reads this one to find the cover; it is plumbing, not a
-    # number anybody debugs with.
-    expected.discard("cover_entity")
+    # Values the debug view deliberately does not show, and why. Anything not
+    # listed here has to appear, so a new attribute fails this test until the
+    # view accounts for it.
+    for attribute, _reason in (
+        ("cover_entity", "plumbing: the strategy reads it to find the cover"),
+        ("message", "written in English by the engine; the view is German"),
+        ("reason_code", "an enum a template renders raw; the conditions say it"),
+        ("blocked_by", "same, and a failing condition already shows which"),
+        ("weather_ok", "carried by the brightness condition and its weather word"),
+        ("episode_active", "the intent line says it in words"),
+    ):
+        expected.discard(attribute)
 
     decision = "sensor.az_decision"
     hass = {
@@ -341,6 +350,12 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
                 "device_id": "hub",
                 "translation_key": "enabled",
             },
+            "binary_sensor.cc_storm": {
+                "entity_id": "binary_sensor.cc_storm",
+                "platform": "cover_control",
+                "device_id": "hub",
+                "translation_key": "storm_active",
+            },
             decision: {
                 "entity_id": decision,
                 "platform": "cover_control",
@@ -352,6 +367,11 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
             "switch.cc_enabled": {
                 "entity_id": "switch.cc_enabled",
                 "state": "on",
+                "attributes": {},
+            },
+            "binary_sensor.cc_storm": {
+                "entity_id": "binary_sensor.cc_storm",
+                "state": "off",
                 "attributes": {},
             },
             decision: {
@@ -383,13 +403,15 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
     shown |= {name for name in expected if f"'{name}'" in templates}
 
     assert expected - shown == set(), "decision attributes missing from the debug view"
-    assert all(row.get("name") for row in rows), "every row needs a readable name"
-
     sun = next(line for line in templates.splitlines() if "profile_angle" in line)
     assert "penetration_depth" in sun, "the angle belongs beside the depth it explains"
     assert "°" in sun and " m" in sun, "both want their unit"
 
-    # Only the two values whose words come from the translations earn a row;
-    # a number in a row costs about forty pixels to say what a line says in a
-    # few characters, and there were eleven of them.
-    assert {row["attribute"] for row in rows} == {"reason_code", "blocked_by"}
+    # The view is a set of sentences now, not a table of values: an attribute
+    # row would be an English label and a raw enum among translated prose.
+    assert rows == [], "the debug view went back to attribute rows"
+
+    # Every condition reads as a tick or a cross with words after it.
+    conditions = [line for line in templates.splitlines() if line.startswith("- {%")]
+    assert len(conditions) >= 4, "expected a list of conditions"
+    assert all("\u2705" in line and "\u274c" in line for line in conditions)

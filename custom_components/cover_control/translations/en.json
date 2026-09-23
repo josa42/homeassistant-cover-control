@@ -236,6 +236,12 @@
           "sun_on_window": {
             "name": "Sun on the window"
           },
+          "temperature_ok": {
+            "name": "Temperature calls for it"
+          },
+          "window_open": {
+            "name": "Window open"
+          },
           "profile_angle": {
             "name": "Angle of the sun on the window"
           },

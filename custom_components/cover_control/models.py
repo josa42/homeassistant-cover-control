@@ -99,6 +99,13 @@ class Decision:
     #: gate returned before brightness was ever evaluated.
     brightness: dict[str, Any] = field(default_factory=dict)
 
+    def gate_passed(self, name: str) -> bool | None:
+        """Whether one gate held, or None if it was never reached."""
+        for gate in self.gates:
+            if gate.name == name:
+                return gate.passed
+        return None
+
     def as_attributes(self) -> dict[str, Any]:
         """Compact form for the sensor.
 
@@ -117,6 +124,11 @@ class Decision:
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
             "sun_on_window": self.geometry.get("sun_on_window"),
+            # The two conditions that were not readable from anywhere else.
+            # Flat booleans rather than the gate list, which the recorder would
+            # write out in full on every evaluation.
+            "temperature_ok": self.gate_passed("temperature"),
+            "window_open": self.inputs.get("window_open"),
             # The angle the sun actually strikes the window at, which is what
             # decides how far in it reaches: the same elevation far off to the
             # side hardly enters at all. Without it the depth below is a number

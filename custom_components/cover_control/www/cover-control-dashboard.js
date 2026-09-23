@@ -33,6 +33,26 @@ const LABELS = {
     nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
     sun: "Sun",
+    weatherWords: {
+    },
+    intent: "Intent",
+    goal: "Goal",
+    fullyOpen: "fully open",
+    fullyShut: "fully shut",
+    slats: "slats",
+    criteria: "Conditions",
+    actionsToday: "Sent today",
+    noActions: "Nothing sent today.",
+    cSun: "Sun on the window",
+    cSunNo: "sun is not on this window",
+    cBright: "Bright enough",
+    cTemp: "Temperature calls for it",
+    cWindow: "Window closed",
+    cStorm: "No storm",
+    cPaused: "Not paused",
+    cOverride: "Not moved by hand",
+    cEnabled: "Switched on",
+    reaches: "reaches",
     notOnThisWindow: "not on this window",
     intoRoom: "into the room",
     readings: "Readings",
@@ -76,6 +96,41 @@ const LABELS = {
     nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
     sun: "Sonne",
+    weatherWords: {
+      "sunny": "sonnig",
+      "partlycloudy": "teils bewölkt",
+      "cloudy": "bewölkt",
+      "rainy": "regnerisch",
+      "pouring": "starker Regen",
+      "snowy": "Schnee",
+      "snowy-rainy": "Schneeregen",
+      "fog": "Nebel",
+      "hail": "Hagel",
+      "lightning": "Gewitter",
+      "lightning-rainy": "Gewitter mit Regen",
+      "windy": "windig",
+      "windy-variant": "windig",
+      "clear-night": "klar",
+      "exceptional": "außergewöhnlich",
+    },
+    intent: "Absicht",
+    goal: "Ziel",
+    fullyOpen: "ganz offen",
+    fullyShut: "ganz zu",
+    slats: "Lamellen",
+    criteria: "Bedingungen",
+    actionsToday: "Heute gestellt",
+    noActions: "Heute nichts gestellt.",
+    cSun: "Sonne auf dem Fenster",
+    cSunNo: "Sonne steht nicht auf diesem Fenster",
+    cBright: "Hell genug",
+    cTemp: "Temperatur verlangt es",
+    cWindow: "Fenster geschlossen",
+    cStorm: "Kein Sturm",
+    cPaused: "Nicht pausiert",
+    cOverride: "Nicht von Hand bewegt",
+    cEnabled: "Eingeschaltet",
+    reaches: "reicht",
     notOnThisWindow: "nicht auf diesem Fenster",
     intoRoom: "in den Raum",
     readings: "Werte",
@@ -189,6 +244,13 @@ function collect(hass) {
     const state = decision ? hass.states[decision.entity] : undefined;
     cover.coverEntity = state && state.attributes.cover_entity;
     cover.dryRun = Boolean(state && state.attributes.dry_run);
+    // Four of the conditions are entities in their own right rather than
+    // anything the decision record carries, so the debug view reads them
+    // straight from the switches and sensors that hold them.
+    cover.pausedEntity = cover.entities.paused;
+    cover.overrideEntity = cover.entities.override_active;
+    cover.enabledEntity = cover.entities.enabled;
+    cover.stormEntity = hub && hub.entities.storm_active;
   }
 
   covers.sort((a, b) => a.name.localeCompare(b.name));
@@ -324,6 +386,40 @@ function overviewView(hub, covers, t) {
   };
 }
 
+/** A condition line: a tick or a cross, then what it says in words. */
+function criterion(label, test, detail) {
+  const mark = `{% if ${test} %}\u2705{% else %}\u274c{% endif %}`;
+  return `- ${mark} ${label}${detail ? " — " + detail : ""}`;
+}
+
+/** The weather condition in the reader's language; state_attr gives the raw id. */
+function weatherWord(entity, t) {
+  const raw = attrOf(entity, "weather");
+  const pairs = Object.entries(t.weatherWords)
+    .map(([id, word]) => `'${id}': '${word}'`)
+    .join(", ");
+  return pairs
+    ? `{{ {${pairs}}.get(${raw}, ${raw}) }}`
+    : `{{ ${raw} }}`;
+}
+
+/**
+ * What the cover was actually sent today.
+ *
+ * Read back out of the cover's own history rather than kept as an attribute:
+ * the decision sensor writes on every evaluation, and a growing list would be
+ * written out again every time. The graph below shows the same thing as a
+ * shape; this is the same thing in words.
+ */
+function actionsCard(coverEntity, t) {
+  return {
+    type: "logbook",
+    title: t.actionsToday,
+    target: { entity_id: coverEntity },
+    hours_to_show: 24,
+  };
+}
+
 function debugView(covers, t) {
   const sections = [];
 
@@ -331,59 +427,86 @@ function debugView(covers, t) {
     const picked = pick(cover, "decision", "sensor");
     if (!picked) continue;
     const decision = picked.entity;
+    const a = (name) => attrOf(decision, name);
 
     const cards = [
       { type: "heading", heading: cover.name },
       {
-        // The human sentence is the fastest answer to "why is it there right
-        // now", so it goes first and in full rather than truncated in a row.
+        // What it wants and where it is taking the cover, in two lines.
         type: "markdown",
         content: [
-          // state_translated, not states: templates return the raw state, so
-          // states() would print window_open instead of the translated intent.
-          `**{{ state_translated('${decision}') }}**`,
-          "",
-          // Rendered live, so a cover switched into dry run says so without
-          // the dashboard having to be regenerated.
-          `{% if ${attrOf(decision, "dry_run")} %}`,
+          `{% if ${a("dry_run")} %}`,
           t.dryRunNotice,
           "{% endif %}",
           "",
-          `{{ ${attrOf(decision, "message")} }}`,
-          // The target and what became of it: four rows of their own before,
-          // and one sentence that happens to be the answer people came for.
-          `{% set p = ${attrOf(decision, "target_position")} %}`,
-          `{% set s = ${attrOf(decision, "target_tilt")} %}`,
-          "{% if p is not none %}",
+          `**${t.intent}:** {{ state_translated('${decision}') }}`,
           "",
-          `**${t.target}:** {{ p }} %`
-            + `{% if s is not none %} · {{ s }} °{% endif %} — `
-            + `{% if ${attrOf(decision, "acted")} %}${t.didMove}`
-            + `{% elif ${attrOf(decision, "would_move")} %}${t.wouldMoveNow}`
+          `{% set p = ${a("target_position")} %}`,
+          `{% set s = ${a("target_tilt")} %}`,
+          "{% if p is none %}",
+          `**${t.goal}:** ${t.nothingToDo}`,
+          "{% else %}",
+          `**${t.goal}:** {{ p }} %`
+            + `{% if p == 100 %} (${t.fullyOpen}){% elif p == 0 %} (${t.fullyShut}){% endif %}`
+            + `{% if s is not none %} · ${t.slats} {{ s }} °{% endif %}`
+            + ` — {% if ${a("acted")} %}${t.didMove}`
+            + `{% elif ${a("would_move")} %}${t.wouldMoveNow}`
             + `{% else %}${t.nothingToDo}{% endif %}`,
           "{% endif %}",
-          "",
-          // Eleven readings that were two cards and eleven rows of chrome.
-          // Grouped, they are four lines and easier to take in at once.
-          `{% if ${attrOf(decision, "sun_on_window")} %}`,
-          `- **${t.sun}:** ${num(decision, "profile_angle", 1, " °")}`
-            + ` · ${num(decision, "penetration_depth", 2, " m")} ${t.intoRoom}`,
-          "{% else %}",
-          `- **${t.sun}:** ${t.notOnThisWindow}`,
-          "{% endif %}",
-          ...brightnessLine(decision, t),
-          `- **${t.readings}:** ${num(decision, "outdoor_temp", 1, "")}`
-            + ` / ${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`
-            + ` · ${num(decision, "wind_speed", 1, " km/h")}`,
-          `- **${t.episodeLabel}:** {% if ${attrOf(decision, "episode_active")} %}`
-            + `${t.episodeRunning}{% else %}${t.episodeIdle}{% endif %}`,
         ].join("\n"),
       },
       {
-        type: "entities",
-        title: t.decision,
-        entities: attributeRows(decision, t),
+        type: "markdown",
+        title: t.criteria,
+        content: [
+          criterion(
+            t.cSun,
+            a("sun_on_window"),
+            `{% if ${a("sun_on_window")} %}${num(decision, "profile_angle", 1, " °")}`
+              + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")} ${t.intoRoom}`
+              + `{% else %}${t.cSunNo}{% endif %}`,
+          ),
+          criterion(
+            t.cBright,
+            a("bright"),
+            `${weatherWord(decision, t)} · ${num(decision, "pv_power", 0, " W")}`
+              + `{% if ${a("pv_override_active")} %} · ${t.pvOverriding}`
+              + `{% else %}{% set at = ${a("pv_override_at")} %}{% if at %}`
+              + "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60)"
+              + " | round(0, 'ceil') | int %}"
+              + ` · ${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}`
+              + `{% endif %}{% endif %}`,
+          ),
+          criterion(
+            t.cTemp,
+            a("temperature_ok"),
+            `${num(decision, "outdoor_temp", 1, "")} / `
+              + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`,
+          ),
+          `{% if ${a("window_open")} is not none %}`,
+          criterion(t.cWindow, `not ${a("window_open")}`, ""),
+          "{% endif %}",
+          ...(cover.stormEntity
+            ? [
+                criterion(
+                  t.cStorm,
+                  `is_state('${cover.stormEntity}', 'off')`,
+                  num(decision, "wind_speed", 1, " km/h"),
+                ),
+              ]
+            : []),
+          ...(cover.pausedEntity
+            ? [criterion(t.cPaused, `is_state('${cover.pausedEntity}', 'off')`, "")]
+            : []),
+          ...(cover.overrideEntity
+            ? [criterion(t.cOverride, `is_state('${cover.overrideEntity}', 'off')`, "")]
+            : []),
+          ...(cover.enabledEntity
+            ? [criterion(t.cEnabled, `is_state('${cover.enabledEntity}', 'on')`, "")]
+            : []),
+        ].join("\n"),
       },
+      ...(cover.coverEntity ? [actionsCard(cover.coverEntity, t)] : []),
       {
         type: "history-graph",
         hours_to_show: 24,

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Changed
+
+- **The debug view answers the question in order and in German.** What it wants,
+  where it is taking the cover, and then every condition as a tick or a cross
+  with the reading behind it: the sun on the window, the brightness, the
+  temperature, the window contact, the storm, the pause, a manual move and the
+  switches. The table of attribute rows is gone, and so is the English sentence
+  the engine writes, which no translation could reach.
+
+  A cover's movements for the day sit under it as a logbook, next to the graph
+  that was already there.
+
+### Added
+
+- **The decision sensor reports whether the temperature called for it**, and
+  whether the window is open. Both were in the diagnostics only, and both are
+  conditions somebody reads the debug view to check.
+
 ### Fixed
 
 - **A temperature resting on its threshold no longer drives the covers.** A
