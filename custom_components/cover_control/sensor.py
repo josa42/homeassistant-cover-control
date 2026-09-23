@@ -35,7 +35,8 @@ async def async_setup_entry(
         if runtime is None:
             continue
         async_add_entities(
-            [DecisionSensor(coordinator, runtime)], config_subentry_id=subentry_id
+            [DecisionSensor(coordinator, runtime), TodaySensor(coordinator, runtime)],
+            config_subentry_id=subentry_id,
         )
 
 
@@ -93,3 +94,29 @@ class DecisionSensor(ControlledCoverEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         self.async_write_ha_state()
+
+
+class TodaySensor(ControlledCoverEntity, SensorEntity):
+    """What happened to one cover today, in order.
+
+    Its own entity rather than an attribute on the decision sensor: that one
+    writes on every evaluation, and the recorder would copy the whole list out
+    again each time. This one only changes when something actually happens.
+    """
+
+    _attr_state_class = None
+
+    def __init__(
+        self, coordinator: CoverControlCoordinator, runtime: CoverRuntime
+    ) -> None:
+        super().__init__(coordinator, runtime, "today")
+
+    @property
+    def native_value(self) -> int | None:
+        runtime = self.runtime
+        return None if runtime is None else len(runtime.events)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        runtime = self.runtime
+        return {} if runtime is None else {"events": runtime.events}

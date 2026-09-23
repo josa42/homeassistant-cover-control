@@ -12,6 +12,28 @@
   1.00 m allowed`, and the sun condition names the limit it is measured
   against rather than a depth with nothing to compare it to.
 
+### Added
+
+- **Every cover keeps a list of its day.** A `Today` sensor per cover carries
+  what actually happened to it, and the cover's page renders it:
+
+  ```
+  07:00 ↑ 100 % · slats 45 °
+  10:00 ↓ 50 % · slats 50 °
+  11:00 ✋ moved by hand to 80 %
+  12:00 ⏸ paused
+  12:30 ▶ resumed
+  ```
+
+  It replaces the logbook card, which showed every change to the cover
+  including ones nothing here made, rolled over the last 24 hours rather than
+  the day, and phrased it its own way. A movement is one entry rather than two,
+  because the slats and the run are two commands and one thing that happened.
+
+  Its own entity rather than an attribute on the decision sensor: that one
+  writes on every evaluation and the recorder would copy the whole list out
+  again each time.
+
 ### Changed
 
 - **The decision sensor reports whether the temperature called for it**, the

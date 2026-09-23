@@ -307,6 +307,14 @@
             "name": "Wind speed"
           }
         }
+      },
+      "today": {
+        "name": "Today",
+        "state_attributes": {
+          "events": {
+            "name": "Events"
+          }
+        }
       }
     },
     "binary_sensor": {

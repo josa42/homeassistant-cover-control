@@ -381,6 +381,11 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
                 # spends a line on that condition for a cover that has one.
                 "attributes": {"cover_entity": "cover.az", "window_open": False},
             },
+            "sensor.az_today": {
+                "entity_id": "sensor.az_today",
+                "state": "0",
+                "attributes": {"events": []},
+            },
         },
     }
     (tmp_path / "hass.json").write_text(json.dumps(hass))
@@ -457,6 +462,11 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
                 "entity_id": decision, "state": "cooling",
                 "attributes": {"cover_entity": "cover.az", "window_open": False},
             },
+            "sensor.az_today": {
+                "entity_id": "sensor.az_today",
+                "state": "0",
+                "attributes": {"events": []},
+            },
         },
     }
     (tmp_path / "hass.json").write_text(json.dumps(hass))
@@ -470,10 +480,12 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
     )
     cards = [card for section in debug["sections"] for card in section["cards"]]
 
-    markdown = [card for card in cards if card["type"] == "markdown"]
-    assert len(markdown) == 1, "the intent and the conditions belong in one card"
+    untitled = [
+        card for card in cards if card["type"] == "markdown" and not card.get("title")
+    ]
+    assert len(untitled) == 1, "the intent and the conditions belong in one card"
 
-    lines = markdown[0]["content"].splitlines()
+    lines = untitled[0]["content"].splitlines()
 
     bare = [
         line

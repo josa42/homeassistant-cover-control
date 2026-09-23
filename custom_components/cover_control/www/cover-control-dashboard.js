@@ -33,6 +33,10 @@ const LABELS = {
     nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
     sun: "Sun",
+    evPaused: "paused",
+    evResumed: "resumed",
+    evOverride: "moved by hand to",
+    evSlats: "slats",
     covers: "Covers",
     details: "Details",
     noCoverNeeded: "no cover needed",
@@ -101,6 +105,10 @@ const LABELS = {
     nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
     sun: "Sonne",
+    evPaused: "pausiert",
+    evResumed: "fortgesetzt",
+    evOverride: "von Hand bewegt auf",
+    evSlats: "Lamellen",
     covers: "Rollläden",
     details: "Details",
     noCoverNeeded: "kein Behang nötig",
@@ -261,6 +269,7 @@ function collect(hass) {
     cover.overrideEntity = cover.entities.override_active;
     cover.enabledEntity = cover.entities.enabled;
     cover.stormEntity = hub && hub.entities.storm_active;
+    cover.todayEntity = cover.entities.today;
     cover.hasWindowSensor =
       state != null && state.attributes.window_open !== undefined
       && state.attributes.window_open !== null;
@@ -317,18 +326,30 @@ function weatherWord(entity, t) {
 }
 
 /**
- * What the cover was actually sent today.
+ * What happened to this cover today, in order.
  *
- * Read back out of the cover's own history rather than kept as an attribute:
- * the decision sensor writes on every evaluation, and a growing list would be
- * written out again every time.
+ * Read from an entity of its own rather than from the logbook: the logbook
+ * shows every change to the cover including ones nothing here made, rolls over
+ * the last 24 hours rather than the day, and phrases it its own way.
  */
-function actionsCard(coverEntity, t) {
+function todayCard(entity, t) {
   return {
-    type: "logbook",
+    type: "markdown",
     title: t.actionsToday,
-    target: { entity_id: coverEntity },
-    hours_to_show: 24,
+    content: [
+      `{% set events = state_attr('${entity}', 'events') or [] %}`
+        + "{% if events | count == 0 %}" + t.noActions + "{% endif %}"
+        + "{% for e in events %}"
+        + "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}"
+        + `{% if e.kind == 'move' %} {% if e.up %}\u2191{% else %}\u2193{% endif %}`
+        + "{% if e.position is defined %} {{ e.position }} %{% endif %}"
+        + `{% if e.tilt is defined %} \u00b7 ${t.evSlats} {{ e.tilt }} \u00b0{% endif %}`
+        + `{% elif e.kind == 'paused' %} \u23f8 ${t.evPaused}`
+        + `{% elif e.kind == 'resumed' %} \u25b6 ${t.evResumed}`
+        + `{% elif e.kind == 'override' %} \u270b ${t.evOverride} {{ e.position }} %`
+        + "{% endif %}  \n"
+        + "{% endfor %}",
+    ].join("\n"),
   };
 }
 
@@ -488,7 +509,7 @@ function coverView(cover, t) {
           : []),
       ].join("\n"),
     },
-    ...(cover.coverEntity ? [actionsCard(cover.coverEntity, t)] : []),
+    ...(cover.todayEntity ? [todayCard(cover.todayEntity, t)] : []),
     {
       type: "history-graph",
       hours_to_show: 24,

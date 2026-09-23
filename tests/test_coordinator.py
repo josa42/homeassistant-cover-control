@@ -524,3 +524,66 @@ async def test_an_actuator_that_forgets_the_angle_is_corrected_once(
 
     assert len(cover_calls["tilt"]) == 2
     assert cover_calls["tilt"][-1].data["tilt_position"] == 45
+
+
+async def test_the_day_list_holds_only_today(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """It is the day's list, not a rolling window, so yesterday drops out."""
+    set_scene(tilt=45)
+    await setup_entry(entry)
+    assert runtime(entry).events, "the shading command should be in the list"
+
+    freezer.tick(timedelta(days=1))
+    await entry.runtime_data.async_pause(runtime(entry).subentry_id)
+    await hass.async_block_till_done()
+
+    kinds = [event["kind"] for event in runtime(entry).events]
+    assert kinds == ["paused"], "yesterday's movements are still listed"
+
+
+async def test_a_movement_is_one_entry_not_two(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """The slats and the run are two commands and one thing that happened."""
+    set_scene()  # slats at 100, so both steps are due
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 100, 45, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == 1
+    assert len(cover_calls["position"]) == 1
+    events = runtime(entry).events
+    assert len(events) == 1, f"one movement, {len(events)} entries"
+    assert events[0]["tilt"] == 45
+    assert events[0]["position"] == 50
+    assert events[0]["up"] is False
+
+
+async def test_pausing_and_resuming_are_in_the_day_list(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
+) -> None:
+    set_scene(tilt=45)
+    await setup_entry(entry)
+    subentry = runtime(entry).subentry_id
+
+    await entry.runtime_data.async_pause(subentry)
+    await entry.runtime_data.async_resume(subentry)
+    await hass.async_block_till_done()
+
+    assert [e["kind"] for e in runtime(entry).events][-2:] == ["paused", "resumed"]
+
+
+async def test_a_manual_takeover_is_in_the_day_list(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    set_scene(tilt=45)
+    await setup_entry(entry)
+
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    await human_moves(hass, 100)
+
+    last = runtime(entry).events[-1]
+    assert last["kind"] == "override"
+    assert last["position"] == 100

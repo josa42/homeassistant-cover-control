@@ -100,6 +100,30 @@ class CoverRuntime:
         #: The target the queue is working towards, so a decision that still
         #: wants the same thing does not restart it.
         self.queued_for: tuple[int | None, int | None] | None = None
+        #: What happened to this cover today, in order. Kept on the runtime and
+        #: published by an entity of its own, because the decision sensor
+        #: writes on every evaluation and would copy the whole list each time.
+        self.events: list[dict[str, Any]] = []
+
+    def record_event(self, kind: str, now: datetime, **detail: Any) -> None:
+        """Note something worth seeing in the day's list.
+
+        A movement is two commands, the slats and then the run, and reads as
+        one thing: they are merged while the second still belongs to the first.
+        """
+        today = dt_util.as_local(now).date()
+        self.events = [
+            event
+            for event in self.events
+            if dt_util.as_local(dt_util.parse_datetime(event["at"])).date() == today
+        ]
+        if kind == "move" and self.events:
+            last = self.events[-1]
+            since = now - dt_util.parse_datetime(last["at"])
+            if last["kind"] == "move" and since < SETTLE_TIME:
+                last.update({k: v for k, v in detail.items() if v is not None})
+                return
+        self.events.append({"at": now.isoformat(), "kind": kind, **detail})
 
     @property
     def is_paused(self) -> bool:
@@ -276,6 +300,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.expected_position,
         )
         runtime.state = replace(runtime.state, override=True)
+        runtime.record_event("override", now, position=position)
 
     # --- reading Home Assistant --------------------------------------------
 
@@ -682,6 +707,18 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         runtime.last_command = now
         runtime.in_flight = command
         runtime.sent_at = now
+        runtime.record_event(
+            "move",
+            now,
+            **(
+                {
+                    "position": command.value,
+                    "up": command.value > (inputs.current_position or 0),
+                }
+                if command.field == "position"
+                else {"tilt": command.value}
+            ),
+        )
 
         try:
             await self.hass.services.async_call(
@@ -738,13 +775,16 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         if runtime is None:
             return
         runtime.state = replace(runtime.state, paused_until=self.next_sunrise())
+        runtime.record_event("paused", dt_util.utcnow())
         await self.async_request_refresh()
 
     async def async_pause_all(self) -> None:
         """Leave every cover alone until the next sunrise."""
         until = self.next_sunrise()
+        now = dt_util.utcnow()
         for runtime in self.runtimes.values():
             runtime.state = replace(runtime.state, paused_until=until)
+            runtime.record_event("paused", now)
         await self.async_request_refresh()
 
     async def async_set_paused_until(
@@ -776,12 +816,15 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         if runtime is None:
             return
         runtime.state = self._resumed(runtime)
+        runtime.record_event("resumed", dt_util.utcnow())
         await self.async_request_refresh()
 
     async def async_resume_all(self) -> None:
         """Hand control back for every cover, however it was suspended."""
+        now = dt_util.utcnow()
         for runtime in self.runtimes.values():
             runtime.state = self._resumed(runtime)
+            runtime.record_event("resumed", now)
         await self.async_request_refresh()
 
     async def async_set_master(self, enabled: bool) -> None:
