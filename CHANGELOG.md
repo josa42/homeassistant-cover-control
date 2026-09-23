@@ -93,6 +93,10 @@
   Every existing cover starts stepping with this release, because the default
   is a quarter rather than off.
 
+- **The decision sensor reports whether the temperature called for it**, and
+  whether the window is open. Both were in the diagnostics only, and both are
+  conditions somebody reads the debug view to check.
+
 ### Changed
 
 - **The debug view answers the question in order and in German.** What it wants,
@@ -104,12 +108,6 @@
 
   A cover's movements for the day sit under it as a logbook, next to the graph
   that was already there.
-
-### Added
-
-- **The decision sensor reports whether the temperature called for it**, and
-  whether the window is open. Both were in the diagnostics only, and both are
-  conditions somebody reads the debug view to check.
 
 ### Fixed
 
