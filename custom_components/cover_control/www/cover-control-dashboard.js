@@ -33,6 +33,9 @@ const LABELS = {
     nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
     sun: "Sun",
+    noCoverNeeded: "no cover needed",
+    ofAllowed: "of",
+    allowed: "allowed",
     weatherWords: {
     },
     intent: "Intent",
@@ -96,6 +99,9 @@ const LABELS = {
     nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
     sun: "Sonne",
+    noCoverNeeded: "kein Behang nötig",
+    ofAllowed: "von",
+    allowed: "erlaubt",
     weatherWords: {
       "sunny": "sonnig",
       "partlycloudy": "teils bewölkt",
@@ -446,10 +452,14 @@ function debugView(covers, t) {
           "{% if p is none %}",
           `**${t.goal}:** ${t.nothingToDo}`,
           "{% else %}",
+          `{% set d = ${a("penetration_depth")} %}`,
+          `{% set limit = ${a("max_penetration_depth")} %}`,
           `**${t.goal}:** {{ p }} %`
             + `{% if p == 100 %} (${t.fullyOpen}){% elif p == 0 %} (${t.fullyShut}){% endif %}`
             + `{% if s is not none %} · ${t.slats} {{ s }} °{% endif %}`
-            + ` — {% if ${a("acted")} %}${t.didMove}`
+            + ` — {% if p == 100 and d is not none and limit is not none %}`
+            + `${t.noCoverNeeded}: {{ d }} m ${t.ofAllowed} {{ limit }} m ${t.allowed}`
+            + `{% elif ${a("acted")} %}${t.didMove}`
             + `{% elif ${a("would_move")} %}${t.wouldMoveNow}`
             + `{% else %}${t.nothingToDo}{% endif %}`,
           "{% endif %}",
@@ -463,7 +473,9 @@ function debugView(covers, t) {
             t.cSun,
             a("sun_on_window"),
             `{% if ${a("sun_on_window")} %}${num(decision, "profile_angle", 1, " °")}`
-              + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")} ${t.intoRoom}`
+              + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")}`
+              + `{% if ${a("max_penetration_depth")} is not none %} ${t.ofAllowed} `
+              + `${num(decision, "max_penetration_depth", 2, " m")} ${t.allowed}{% endif %}`
               + `{% else %}${t.cSunNo}{% endif %}`,
           ),
           criterion(

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **The goal says why it is the number it is.** Every condition can hold and
+  the cover still stay fully open, because the conditions only decide whether
+  to shade at all: how much cover it takes is geometry, and the sun can be on
+  the window, bright and hot and still reach no further into the room than is
+  allowed. The goal now reads `100 % (fully open) — no cover needed: 0.99 m of
+  1.00 m allowed`, and the sun condition names the limit it is measured
+  against rather than a depth with nothing to compare it to.
+
+### Changed
+
+- **The decision sensor reports whether the temperature called for it**, the
+  allowed sun depth, and whether the window is open. All three were in the
+  diagnostics only, and all three are things somebody reads the debug view to
+  check.
+
 ## 1.8.0 - 2026-09-23
 
 ### Added

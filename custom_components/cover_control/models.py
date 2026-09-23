@@ -135,6 +135,9 @@ class Decision:
             # with nothing behind it.
             "profile_angle": self.geometry.get("profile_angle"),
             "penetration_depth": self.geometry.get("penetration_depth"),
+            # Without the limit the depth is a number with nothing to compare
+            # it against, and it is the comparison that decides the position.
+            "max_penetration_depth": self.geometry.get("max_penetration_depth"),
             "outdoor_temp": self.inputs.get("outdoor_temp"),
             "indoor_temp": self.inputs.get("indoor_temp"),
             "pv_power": self.inputs.get("pv_power"),

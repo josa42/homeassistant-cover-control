@@ -252,6 +252,9 @@
           "penetration_depth": {
             "name": "Sonneneinfall in den Raum"
           },
+          "max_penetration_depth": {
+            "name": "Erlaubte Sonnentiefe"
+          },
           "outdoor_temp": {
             "name": "Außentemperatur"
           },

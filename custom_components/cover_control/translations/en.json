@@ -252,6 +252,9 @@
           "penetration_depth": {
             "name": "Sun reaches into the room"
           },
+          "max_penetration_depth": {
+            "name": "Allowed sun depth"
+          },
           "outdoor_temp": {
             "name": "Outdoor temperature"
           },
