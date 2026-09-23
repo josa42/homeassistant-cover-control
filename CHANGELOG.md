@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A cover driven fully up is no longer asked for a slat angle.** Its slats
+  are wound into the box, so there is nothing left to turn. The command was a
+  motor run that changed nothing, and on an actuator that puts the angle back
+  to whatever it had before a run it was a second one undoing the first. The
+  end of an episode is one run now.
+
+- **The slats are set before the run, not after it.** An actuator can be set up
+  to restore the angle it had before a run, which turned a tilt sent afterwards
+  into a fight: the cover arrived, the actuator put the old angle back, and the
+  correction put it back again. Three motor runs for one decision. Setting the
+  angle first makes that restore land on the angle that was wanted. An actuator
+  that does not restore is still corrected, on the next evaluation.
+
 ## 1.7.1 - 2026-09-22
 
 ### Fixed

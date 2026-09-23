@@ -128,7 +128,7 @@ async def test_dry_run_withholds_storm_protection_too(
 async def test_normal_mode_still_moves_the_cover(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so the run is the only step
     await setup_entry(entry)
 
     assert cover_calls["position"][-1].data["position"] == 50

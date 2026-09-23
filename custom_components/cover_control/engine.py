@@ -167,6 +167,12 @@ def evaluate(
         geom: dict | None = None,
         new_state: EpisodeState | None = None,
     ) -> tuple[Decision, EpisodeState]:
+        if position == 100:
+            # A raffstore driven fully up has wound its slats into the box, so
+            # there is no angle left to set. Asking for one is a motor run that
+            # turns nothing, and on an actuator that restores the angle it had
+            # before a run it is a second one undoing the first.
+            tilt = None
         decision = Decision(
             timestamp=inputs.now,
             cover_entity=cover_entity,

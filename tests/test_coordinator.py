@@ -51,7 +51,7 @@ async def human_moves(hass: HomeAssistant, position: int) -> None:
 async def test_shading_starts_an_episode(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
 ) -> None:
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     assert runtime(entry).state.active
     assert runtime(entry).expected_position == 50
@@ -233,7 +233,7 @@ async def test_a_failing_cover_does_not_break_the_integration(
     """One cover refusing a command must not take the whole entry down."""
     hass.services.async_remove("cover", "set_cover_position")
 
-    set_scene()
+    set_scene(tilt=45)  # so the position command is the one refused
     await setup_entry(entry)
 
     assert entry.state is ConfigEntryState.LOADED
@@ -268,7 +268,7 @@ async def test_a_cover_that_never_arrives_is_not_re_commanded_on_every_report(
     that produced the report, so the cover twitched on the coordinator's
     debounce interval for as long as the episode ran.
     """
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     assert len(cover_calls["position"]) == 1
     ours = Context(id=next(iter(runtime(entry)._contexts)))
@@ -290,11 +290,11 @@ async def test_the_command_is_retried_once_the_cover_has_had_its_time(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls, freezer
 ) -> None:
     """The resend guard is a rate limit, not a one-shot."""
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     ours = Context(id=next(iter(runtime(entry)._contexts)))
 
-    await report(hass, "open", 100, 100, ours)
+    await report(hass, "open", 100, 45, ours)
     await entry.runtime_data.async_refresh()
     assert len(cover_calls["position"]) == 1
 
@@ -355,7 +355,7 @@ async def test_the_next_command_waits_for_the_cover_to_stop(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
     """Reaching the position is not the same as being done with the run."""
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     ours = Context(id=next(iter(runtime(entry)._contexts)))
     assert len(cover_calls["position"]) == 1
@@ -371,52 +371,11 @@ async def test_the_next_command_waits_for_the_cover_to_stop(
     assert cover_calls["tilt"][-1].data["tilt_position"] == 45
 
 
-async def test_the_open_that_ends_an_episode_finishes_after_the_episode(
-    hass: HomeAssistant,
-    entry: MockConfigEntry,
-    set_scene,
-    setup_entry,
-    cover_calls,
-    freezer,
-) -> None:
-    """The decisions that follow the end of an episode carry no target at all.
-
-    Opening a cover takes two commands, and by the time the second one is due
-    the cover is neutral and has nothing left to ask for. A cover left shut for
-    the rest of the day is what that used to cost.
-    """
-    set_scene()
-    await setup_entry(entry)
-    ours = Context(id=next(iter(runtime(entry)._contexts)))
-    await report(hass, "open", 50, 45, ours)  # shaded and settled
-    await entry.runtime_data.async_refresh()
-
-    # The sun leaves the window and the episode debounces, then ends.
-    set_scene(position=50, tilt=45, sun_azimuth=20.0)
-    await entry.runtime_data.async_refresh()
-    set_scene(position=50, tilt=45, sun_azimuth=20.0)
-    await entry.runtime_data.async_refresh()
-    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
-    set_scene(position=50, tilt=45, sun_azimuth=20.0)
-    await entry.runtime_data.async_refresh()
-
-    decision = hass.states.get("sensor.raffstore_decision")
-    assert decision.attributes["reason_code"] == "episode_ended"
-    assert cover_calls["position"][-1].data["position"] == 100
-
-    # It opens, and only then is the second half of that open due.
-    await report(hass, "open", 100, 45, ours)
-    await entry.runtime_data.async_refresh()
-
-    assert hass.states.get("sensor.raffstore_decision").attributes["target_position"] is None
-    assert cover_calls["tilt"][-1].data["tilt_position"] == 100
-
-
 async def test_a_cover_taken_over_by_hand_stops_being_driven(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
     """Whatever is still queued was decided under conditions that no longer hold."""
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     ours = Context(id=next(iter(runtime(entry)._contexts)))
     assert len(cover_calls["position"]) == 1
@@ -435,7 +394,7 @@ async def test_a_storm_does_not_wait_behind_a_shading_run(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
     """Protecting the hardware is the one thing worth cancelling a run for."""
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so this is one position step
     await setup_entry(entry)
     ours = Context(id=next(iter(runtime(entry)._contexts)))
     assert cover_calls["position"][-1].data["position"] == 50
@@ -446,43 +405,6 @@ async def test_a_storm_does_not_wait_behind_a_shading_run(
 
     assert cover_calls["position"][-1].data["position"] == 100
     assert hass.states.get("sensor.raffstore_decision").state == "storm"
-
-
-async def test_the_slats_are_judged_when_their_turn_comes_not_when_queued(
-    hass: HomeAssistant,
-    entry: MockConfigEntry,
-    set_scene,
-    setup_entry,
-    cover_calls,
-    freezer,
-) -> None:
-    """The slats swing while the cover travels, so deciding early decides wrong.
-
-    Here they already sit where the open wants them when the open is worked
-    out, and are somewhere else by the time the cover has arrived. Nothing
-    comes after an episode that could notice: those decisions carry no target.
-    """
-    set_scene()
-    await setup_entry(entry)
-    ours = Context(id=next(iter(runtime(entry)._contexts)))
-    await report(hass, "open", 50, 100, ours)  # shaded, slats wide open
-    await entry.runtime_data.async_refresh()
-
-    set_scene(position=50, tilt=100, sun_azimuth=20.0)  # the sun leaves
-    await entry.runtime_data.async_refresh()  # the episode starts debouncing
-    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
-    set_scene(position=50, tilt=100, sun_azimuth=20.0)
-    await entry.runtime_data.async_refresh()
-    assert hass.states.get("sensor.raffstore_decision").attributes["reason_code"] == (
-        "episode_ended"
-    )
-    assert cover_calls["position"][-1].data["position"] == 100
-
-    # It opens, and the slats fall shut somewhere during the run.
-    await report(hass, "open", 100, 30, ours)
-    await entry.runtime_data.async_refresh()
-
-    assert cover_calls["tilt"][-1].data["tilt_position"] == 100
 
 
 async def test_a_step_the_cover_no_longer_needs_is_dropped(
@@ -508,7 +430,97 @@ async def test_a_step_the_cover_no_longer_needs_is_dropped(
     await entry.runtime_data.async_refresh()
 
     # It opens and the slats end up where the open wanted them anyway.
-    await report(hass, "open", 100, 100, ours)
+    await report(hass, "open", 100, 45, ours)
     await entry.runtime_data.async_refresh()
 
     assert len(cover_calls["tilt"]) == tilts, "started the motor for nothing"
+
+
+async def test_opening_fully_asks_for_no_slat_angle(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    set_scene,
+    setup_entry,
+    cover_calls,
+    freezer,
+) -> None:
+    """A raffstore at the top has wound its slats into the box.
+
+    There is no angle left to set, so asking for one is a motor run that turns
+    nothing, and on an actuator that restores the angle it had before a run it
+    is a second one undoing the first.
+    """
+    set_scene(tilt=45)
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 50, 45, ours)
+    await entry.runtime_data.async_refresh()
+    tilts = len(cover_calls["tilt"])
+
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)  # the sun leaves
+    await entry.runtime_data.async_refresh()
+    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))
+    set_scene(position=50, tilt=45, sun_azimuth=20.0)
+    await entry.runtime_data.async_refresh()
+
+    decision = hass.states.get("sensor.raffstore_decision")
+    assert decision.attributes["reason_code"] == "episode_ended"
+    assert decision.attributes["target_position"] == 100
+    assert decision.attributes["target_tilt"] is None, "an angle at the top"
+    assert cover_calls["position"][-1].data["position"] == 100
+
+    await report(hass, "open", 100, 45, ours)  # it arrives, slats left anywhere
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == tilts, "set an angle on a cover at the top"
+
+
+async def test_the_slats_are_set_before_the_run(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """An actuator can be set up to put the slat angle back after a run.
+
+    Setting the angle first makes that restore land on the angle we wanted,
+    instead of on the one the cover happened to have before.
+    """
+    set_scene()  # slats wide open at 100, shading wants 45
+    await setup_entry(entry)
+
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45, "slats go first"
+    assert not cover_calls["position"], "the run waits for the slats"
+
+
+async def test_an_actuator_that_restores_the_angle_needs_no_correction(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """Which kind of actuator it is can only be known once the run is over."""
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+
+    await report(hass, "open", 100, 45, ours)  # slats set
+    await entry.runtime_data.async_refresh()
+    assert cover_calls["position"][-1].data["position"] == 50
+
+    await report(hass, "open", 50, 45, ours)  # it put the angle back itself
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == 1, "corrected an angle that was already right"
+
+
+async def test_an_actuator_that_forgets_the_angle_is_corrected_once(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    set_scene()
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+
+    await report(hass, "open", 100, 45, ours)
+    await entry.runtime_data.async_refresh()
+
+    # It arrives with the angle the run left behind, not the one we set.
+    await report(hass, "open", 50, 0, ours)
+    await entry.runtime_data.async_refresh()
+
+    assert len(cover_calls["tilt"]) == 2
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45

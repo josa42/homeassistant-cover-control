@@ -509,27 +509,31 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
     def _steps_for(self, decision: Decision, inputs: Inputs) -> list[Command]:
         """The commands that carry out a decision, in the order they must be sent.
 
-        Position first: the slats hang off where the cover is, and a tilt sent
-        into a moving cover cancels the run it is in the middle of.
+        Slats first, then the run.
 
-        Both are queued whether or not the cover needs them yet. Whether one is
-        worth sending is decided when its turn comes rather than here: the
-        slats swing as the cover travels, so a tilt that matches the target now
-        is often exactly what is missing by the time the cover has arrived.
+        An actuator can be set up to put the slat angle back to whatever it was
+        before a run. Setting the angle first makes that restore land on the
+        angle we wanted, instead of on the one the cover happened to have.
+
+        An actuator that does not restore is corrected on the next evaluation:
+        the queue empties, the steps are worked out again from where the cover
+        now is, and the angle is due. So the check after the run is there, it
+        just does not need a step of its own.
+
+        A cover going fully up carries no tilt, so it is a single run.
         """
-        steps = [
-            Command(
-                "set_cover_position",
-                "position",
-                decision.target_position,
-                force=decision.intent is Intent.STORM,
-            )
-        ]
-        if inputs.supports_tilt and decision.target_tilt is not None:
-            steps.append(
-                Command("set_cover_tilt_position", "tilt_position", decision.target_tilt)
-            )
-        return steps
+        tilt = (
+            Command("set_cover_tilt_position", "tilt_position", decision.target_tilt)
+            if inputs.supports_tilt and decision.target_tilt is not None
+            else None
+        )
+        drive = Command(
+            "set_cover_position",
+            "position",
+            decision.target_position,
+            force=decision.intent is Intent.STORM,
+        )
+        return [tilt, drive] if tilt is not None else [drive]
 
     def _is_due(self, command: Command, inputs: Inputs) -> bool:
         """Whether a command still needs sending, judged against the cover now."""

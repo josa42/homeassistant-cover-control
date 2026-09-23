@@ -61,7 +61,7 @@ async def test_hub_and_cover_are_separate_devices(
 async def test_shades_a_hot_sunny_window(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
-    set_scene()
+    set_scene(tilt=45)  # slats already right, so the run is the only step
     await setup_entry(entry)
 
     assert cover_calls["position"], "expected the cover to be shaded"
@@ -73,24 +73,25 @@ async def test_shades_a_hot_sunny_window(
     assert decision.attributes["target_position"] == 50
 
 
-async def test_the_slats_are_set_only_once_the_cover_has_arrived(
+async def test_the_slats_are_set_before_the_cover_travels(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
 ) -> None:
-    """A tilt command sent into a running cover is read as a new destination.
+    """An actuator can be set up to put the slat angle back after a run.
 
-    The cover abandons the run and settles back where it started, so it never
-    reaches its position and the same pair of commands goes out again on the
-    state change that caused. Position first, tilt after arrival, breaks that.
+    Setting it first makes that restore land on the angle we wanted. It also
+    keeps a tilt out of a moving cover, which reads one as a new destination
+    and abandons the run it is in the middle of.
     """
     set_scene()
     await setup_entry(entry)
 
-    assert not cover_calls["tilt"], "the cover is still travelling"
+    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
+    assert not cover_calls["position"], "the run waits for the slats"
 
-    set_scene(position=50)  # it arrives
+    set_scene(tilt=45)  # the slats are set
     await hass.async_block_till_done()
 
-    assert cover_calls["tilt"][-1].data["tilt_position"] == 45
+    assert cover_calls["position"][-1].data["position"] == 50
 
 
 async def test_decision_message_explains_the_number(
