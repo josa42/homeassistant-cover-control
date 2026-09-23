@@ -33,6 +33,8 @@ const LABELS = {
     nothingToDo: "nothing to do",
     blockedBy: "Blocked by",
     sun: "Sun",
+    covers: "Covers",
+    details: "Details",
     noCoverNeeded: "no cover needed",
     ofAllowed: "of",
     allowed: "allowed",
@@ -99,6 +101,8 @@ const LABELS = {
     nothingToDo: "nichts zu tun",
     blockedBy: "Blockiert durch",
     sun: "Sonne",
+    covers: "Rollläden",
+    details: "Details",
     noCoverNeeded: "kein Behang nötig",
     ofAllowed: "von",
     allowed: "erlaubt",
@@ -263,24 +267,12 @@ function collect(hass) {
   }
 
   covers.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Sorted first, so the paths do not shuffle when a cover is added.
+  const taken = new Set(["overview"]);
+  for (const cover of covers) cover.viewPath = viewPath(cover.name, taken);
   return { hub, covers };
 }
-
-/**
- * The two values whose words come from the integration's own translations.
- *
- * Everything else in the record is a number or a boolean and reads better
- * packed into the lines above than as a row of its own. These two do not:
- * ``state_attr`` in a template returns the raw enum, so a row is what turns
- * ``manual_override`` into something a person can read.
- */
-function attributeRows(entity, t) {
-  return [
-    ["reason_code", t.reason],
-    ["blocked_by", t.blockedBy],
-  ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
-}
-
 /** A rounded reading, or a dash where the sensor has nothing to say. */
 function num(entity, name, digits, unit) {
   const a = attrOf(entity, name);
@@ -291,32 +283,6 @@ function num(entity, name, digits, unit) {
 function attrOf(entity, name) {
   return `state_attr('${entity}', '${name}')`;
 }
-
-/**
- * "Not bright enough" in words, with a live countdown to the PV override.
- *
- * A template rather than rows because the interesting number, how much longer
- * PV has to hold, is not stored anywhere: only the moment the override engages
- * is. Templates using now() re-render every minute, so the countdown stays
- * honest between the five-minute evaluations.
- */
-function brightnessLine(entity, t) {
-  const a = (name) => attrOf(entity, name);
-  const verdict = `${"'" + t.brightYes + "' if " + a("bright") + " else '" + t.brightNo + "'"}`;
-  const allowed = `${"'" + t.weatherAllowed + "' if " + a("weather_ok") + " else '" + t.weatherNotAllowed + "'"}`;
-  return [
-    `- **${t.brightness}:** `
-      + `{% if ${a("bright")} is none %}${t.brightUnknown}{% else %}`
-      + `{{ ${verdict} }} · {{ ${a("weather")} }} {{ ${allowed} }} · `
-      + `${num(entity, "pv_power", 0, " W")}{% endif %}`
-      + `{% set at = ${a("pv_override_at")} %}`
-      + `{% if ${a("pv_override_active")} %} · ${t.pvOverriding}{% elif at %}`
-      + "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60)"
-      + " | round(0, 'ceil') | int %}"
-      + ` · ${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}{% endif %}`,
-  ];
-}
-
 function statusRows(entity, t) {
   return [
     ["total", t.coversTotal],
@@ -329,10 +295,64 @@ function statusRows(entity, t) {
   ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
 }
 
+/**
+ * A URL path for one cover's own view, unique within the dashboard.
+ *
+ * Two covers may carry the same name, and a view path that collides would
+ * silently take the reader to the wrong one.
+ */
+/** A condition line: a tick or a cross, then what it says in words. */
+function criterion(label, test, detail) {
+  const mark = `{% if ${test} %}\u2705{% else %}\u274c{% endif %}`;
+  return `- ${mark} ${label}${detail ? " \u2014 " + detail : ""}`;
+}
+
+/** The weather condition in the reader's language; state_attr gives the raw id. */
+function weatherWord(entity, t) {
+  const raw = attrOf(entity, "weather");
+  const pairs = Object.entries(t.weatherWords)
+    .map(([id, word]) => `'${id}': '${word}'`)
+    .join(", ");
+  return pairs ? `{{ {${pairs}}.get(${raw}, ${raw}) }}` : `{{ ${raw} }}`;
+}
+
+/**
+ * What the cover was actually sent today.
+ *
+ * Read back out of the cover's own history rather than kept as an attribute:
+ * the decision sensor writes on every evaluation, and a growing list would be
+ * written out again every time.
+ */
+function actionsCard(coverEntity, t) {
+  return {
+    type: "logbook",
+    title: t.actionsToday,
+    target: { entity_id: coverEntity },
+    hours_to_show: 24,
+  };
+}
+
+function viewPath(name, taken) {
+  const umlauts = { "\u00e4": "ae", "\u00f6": "oe", "\u00fc": "ue", "\u00df": "ss" };
+  const base =
+    "cover-" +
+      (name || "")
+        .toLowerCase()
+        .replace(/[\u00e4\u00f6\u00fc\u00df]/g, (c) => umlauts[c])
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "cover";
+  let path = base;
+  for (let n = 2; taken.has(path); n += 1) path = `${base}-${n}`;
+  taken.add(path);
+  return path;
+}
+
 function overviewView(hub, covers, t) {
   const sections = [];
 
   if (hub) {
+    // The central controls stay: the master switch, what it is doing, the
+    // storm sensor and pause-all / resume-all.
     const cards = [{ type: "heading", heading: t.control }];
     const enabled = pick(hub, "enabled", "switch");
     if (enabled) cards.push({ type: "tile", ...enabled });
@@ -352,39 +372,23 @@ function overviewView(hub, covers, t) {
     sections.push({ type: "grid", cards });
   }
 
+  // One tile per cover, and nothing to operate: the question this view answers
+  // is which cover is in which state. Everything about one of them, including
+  // its buttons, is a tap away in its own view.
+  const cards = [{ type: "heading", heading: t.covers }];
   for (const cover of covers) {
-    const cards = [{ type: "heading", heading: cover.name }];
-    if (cover.coverEntity) {
-      cards.push({
-        type: "tile",
-        entity: cover.coverEntity,
-        features_position: "bottom",
-        features: [{ type: "cover-open-close" }, { type: "cover-position" }],
-      });
-    }
-    const decision = pick(cover, "decision", "sensor");
-    if (decision) {
-      cards.push({
-        type: "tile",
-        entity: decision.entity,
-        name: t.decision,
-        state_content: ["state", "reason_code"],
-        ...(cover.dryRun ? { icon: "mdi:test-tube" } : {}),
-      });
-    }
-    const override = pick(cover, "override_active", "binary_sensor");
-    if (override) cards.push({ type: "tile", ...override });
-    // No domain fallback: it would repeat the override tile on a registry
-    // entry that carries no translation key.
-    const paused = pick(cover, "paused", null);
-    if (paused) cards.push({ type: "tile", ...paused });
-    const enabled = pick(cover, "enabled", "switch");
-    if (enabled) cards.push({ type: "tile", ...enabled });
-    for (const button of cover.buttons) {
-      cards.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
-    }
-    sections.push({ type: "grid", cards });
+    if (!cover.coverEntity) continue;
+    cards.push({
+      type: "tile",
+      entity: cover.coverEntity,
+      name: cover.name,
+      state_content: ["state", "current_position"],
+      ...(cover.dryRun ? { icon: "mdi:test-tube" } : {}),
+      tap_action: { action: "navigate", navigation_path: cover.viewPath },
+      icon_tap_action: { action: "navigate", navigation_path: cover.viewPath },
+    });
   }
+  if (cards.length > 1) sections.push({ type: "grid", cards });
 
   return {
     title: t.overview,
@@ -395,147 +399,133 @@ function overviewView(hub, covers, t) {
   };
 }
 
-/** A condition line: a tick or a cross, then what it says in words. */
-function criterion(label, test, detail) {
-  const mark = `{% if ${test} %}\u2705{% else %}\u274c{% endif %}`;
-  return `- ${mark} ${label}${detail ? " — " + detail : ""}`;
-}
-
-/** The weather condition in the reader's language; state_attr gives the raw id. */
-function weatherWord(entity, t) {
-  const raw = attrOf(entity, "weather");
-  const pairs = Object.entries(t.weatherWords)
-    .map(([id, word]) => `'${id}': '${word}'`)
-    .join(", ");
-  return pairs
-    ? `{{ {${pairs}}.get(${raw}, ${raw}) }}`
-    : `{{ ${raw} }}`;
-}
-
 /**
- * What the cover was actually sent today.
+ * One cover, everything about it: what it wants, why, its buttons and its day.
  *
- * Read back out of the cover's own history rather than kept as an attribute:
- * the decision sensor writes on every evaluation, and a growing list would be
- * written out again every time. The graph below shows the same thing as a
- * shape; this is the same thing in words.
+ * A subview rather than a tab, so it does not widen the tab bar with one entry
+ * per window and comes with a way back to the overview that sent the reader.
  */
-function actionsCard(coverEntity, t) {
-  return {
-    type: "logbook",
-    title: t.actionsToday,
-    target: { entity_id: coverEntity },
-    hours_to_show: 24,
-  };
-}
+function coverView(cover, t) {
+  const picked = pick(cover, "decision", "sensor");
+  if (!picked) return null;
+  const decision = picked.entity;
+  const a = (name) => attrOf(decision, name);
 
-function debugView(covers, t) {
-  const sections = [];
+  const cards = [
+    {
+      // One card, and every line in it is one rendered line. A bare Jinja
+      // statement on its own line leaves a blank one behind, and a blank
+      // line inside a list ends the list and starts another with a
+      // paragraph of air between them.
+      type: "markdown",
+      content: [
+        // Trimmed on both ends, so a cover not in dry run is not given a
+        // blank line where the notice would have been.
+        `{%- if ${a("dry_run")} %}${t.dryRunNotice}\n\n{% endif -%}`,
+        // Two trailing spaces: a hard break, so the goal is its own line
+        // without the blank one a new paragraph would cost.
+        `**${t.intent}:** {{ state_translated('${decision}') }}  `,
+        `{% set p = ${a("target_position")} %}`
+          + `{%- set s = ${a("target_tilt")} %}`
+          + `{%- set d = ${a("penetration_depth")} %}`
+          + `{%- set limit = ${a("max_penetration_depth")} -%}`,
+        `**${t.goal}:** {% if p is none %}${t.nothingToDo}{% else %}{{ p }} %`
+          + `{% if p == 100 %} (${t.fullyOpen}){% elif p == 0 %} (${t.fullyShut}){% endif %}`
+          + `{% if s is not none %} · ${t.slats} {{ s }} °{% endif %}`
+          + ` — {% if p == 100 and d is not none and limit is not none %}`
+          + `${t.noCoverNeeded}: {{ d }} m ${t.ofAllowed} {{ limit }} m ${t.allowed}`
+          + `{% elif ${a("acted")} %}${t.didMove}`
+          + `{% elif ${a("would_move")} %}${t.wouldMoveNow}`
+          + `{% else %}${t.nothingToDo}{% endif %}{% endif %}`,
+        "",
+        criterion(
+          t.cSun,
+          a("sun_on_window"),
+          `{% if ${a("sun_on_window")} %}${num(decision, "profile_angle", 1, " °")}`
+            + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")}`
+            + `{% if limit is not none %} ${t.ofAllowed} {{ limit }} m ${t.allowed}{% endif %}`
+            + `{% else %}${t.cSunNo}{% endif %}`,
+        ),
+        criterion(
+          t.cBright,
+          a("bright"),
+          `${weatherWord(decision, t)} · ${num(decision, "pv_power", 0, " W")}`
+            + `{% if ${a("pv_override_active")} %} · ${t.pvOverriding}`
+            + `{% else %}{% set at = ${a("pv_override_at")} %}{% if at %}`
+            + "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60)"
+            + " | round(0, 'ceil') | int %}"
+            + ` · ${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}`
+            + `{% endif %}{% endif %}`,
+        ),
+        criterion(
+          t.cTemp,
+          a("temperature_ok"),
+          `${num(decision, "outdoor_temp", 1, "")} / `
+            + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`,
+        ),
+        // Whether there is a window contact at all is settled here rather
+        // than in the template, so no line is spent on a cover without one.
+        ...(cover.hasWindowSensor
+          ? [criterion(t.cWindow, `not ${a("window_open")}`, "")]
+          : []),
+        ...(cover.stormEntity
+          ? [
+              criterion(
+                t.cStorm,
+                `is_state('${cover.stormEntity}', 'off')`,
+                num(decision, "wind_speed", 1, " km/h"),
+              ),
+            ]
+          : []),
+        ...(cover.pausedEntity
+          ? [criterion(t.cPaused, `is_state('${cover.pausedEntity}', 'off')`, "")]
+          : []),
+        ...(cover.overrideEntity
+          ? [criterion(t.cOverride, `is_state('${cover.overrideEntity}', 'off')`, "")]
+          : []),
+        ...(cover.enabledEntity
+          ? [criterion(t.cEnabled, `is_state('${cover.enabledEntity}', 'on')`, "")]
+          : []),
+      ].join("\n"),
+    },
+    ...(cover.coverEntity ? [actionsCard(cover.coverEntity, t)] : []),
+    {
+      type: "history-graph",
+      hours_to_show: 24,
+      entities: [
+        ...(cover.coverEntity ? [{ entity: cover.coverEntity }] : []),
+        { entity: decision },
+      ],
+    },
+  ];
 
-  for (const cover of covers) {
-    const picked = pick(cover, "decision", "sensor");
-    if (!picked) continue;
-    const decision = picked.entity;
-    const a = (name) => attrOf(decision, name);
-
-    const cards = [
-      { type: "heading", heading: cover.name },
-      {
-        // One card, and every line in it is one rendered line. A bare Jinja
-        // statement on its own line leaves a blank one behind, and a blank
-        // line inside a list ends the list and starts another with a
-        // paragraph of air between them.
-        type: "markdown",
-        content: [
-          // Trimmed on both ends, so a cover not in dry run is not given a
-          // blank line where the notice would have been.
-          `{%- if ${a("dry_run")} %}${t.dryRunNotice}\n\n{% endif -%}`,
-          // Two trailing spaces: a hard break, so the goal is its own line
-          // without the blank one a new paragraph would cost.
-          `**${t.intent}:** {{ state_translated('${decision}') }}  `,
-          `{% set p = ${a("target_position")} %}`
-            + `{%- set s = ${a("target_tilt")} %}`
-            + `{%- set d = ${a("penetration_depth")} %}`
-            + `{%- set limit = ${a("max_penetration_depth")} -%}`,
-          `**${t.goal}:** {% if p is none %}${t.nothingToDo}{% else %}{{ p }} %`
-            + `{% if p == 100 %} (${t.fullyOpen}){% elif p == 0 %} (${t.fullyShut}){% endif %}`
-            + `{% if s is not none %} · ${t.slats} {{ s }} °{% endif %}`
-            + ` — {% if p == 100 and d is not none and limit is not none %}`
-            + `${t.noCoverNeeded}: {{ d }} m ${t.ofAllowed} {{ limit }} m ${t.allowed}`
-            + `{% elif ${a("acted")} %}${t.didMove}`
-            + `{% elif ${a("would_move")} %}${t.wouldMoveNow}`
-            + `{% else %}${t.nothingToDo}{% endif %}{% endif %}`,
-          "",
-          criterion(
-            t.cSun,
-            a("sun_on_window"),
-            `{% if ${a("sun_on_window")} %}${num(decision, "profile_angle", 1, " °")}`
-              + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")}`
-              + `{% if limit is not none %} ${t.ofAllowed} {{ limit }} m ${t.allowed}{% endif %}`
-              + `{% else %}${t.cSunNo}{% endif %}`,
-          ),
-          criterion(
-            t.cBright,
-            a("bright"),
-            `${weatherWord(decision, t)} · ${num(decision, "pv_power", 0, " W")}`
-              + `{% if ${a("pv_override_active")} %} · ${t.pvOverriding}`
-              + `{% else %}{% set at = ${a("pv_override_at")} %}{% if at %}`
-              + "{% set mins = ((as_datetime(at) - now()).total_seconds() / 60)"
-              + " | round(0, 'ceil') | int %}"
-              + ` · ${t.pvOverrideIn} {{ [mins, 0] | max }} ${t.pvOverrideMinutes}`
-              + `{% endif %}{% endif %}`,
-          ),
-          criterion(
-            t.cTemp,
-            a("temperature_ok"),
-            `${num(decision, "outdoor_temp", 1, "")} / `
-              + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`,
-          ),
-          // Whether there is a window contact at all is settled here rather
-          // than in the template, so no line is spent on a cover without one.
-          ...(cover.hasWindowSensor
-            ? [criterion(t.cWindow, `not ${a("window_open")}`, "")]
-            : []),
-          ...(cover.stormEntity
-            ? [
-                criterion(
-                  t.cStorm,
-                  `is_state('${cover.stormEntity}', 'off')`,
-                  num(decision, "wind_speed", 1, " km/h"),
-                ),
-              ]
-            : []),
-          ...(cover.pausedEntity
-            ? [criterion(t.cPaused, `is_state('${cover.pausedEntity}', 'off')`, "")]
-            : []),
-          ...(cover.overrideEntity
-            ? [criterion(t.cOverride, `is_state('${cover.overrideEntity}', 'off')`, "")]
-            : []),
-          ...(cover.enabledEntity
-            ? [criterion(t.cEnabled, `is_state('${cover.enabledEntity}', 'on')`, "")]
-            : []),
-        ].join("\n"),
-      },
-      ...(cover.coverEntity ? [actionsCard(cover.coverEntity, t)] : []),
-      {
-        type: "history-graph",
-        hours_to_show: 24,
-        entities: [
-          ...(cover.coverEntity ? [{ entity: cover.coverEntity }] : []),
-          { entity: decision },
-        ],
-      },
-    ];
-    sections.push({ type: "grid", cards });
+  // The controls the overview no longer carries live here instead.
+  const controls = [{ type: "heading", heading: t.control }];
+  if (cover.coverEntity) {
+    controls.push({
+      type: "tile",
+      entity: cover.coverEntity,
+      features_position: "bottom",
+      features: [{ type: "cover-open-close" }, { type: "cover-position" }],
+    });
+  }
+  const enabled = pick(cover, "enabled", "switch");
+  if (enabled) controls.push({ type: "tile", ...enabled });
+  for (const button of cover.buttons) {
+    controls.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
   }
 
-  return {
-    title: t.debug,
-    path: "debug",
-    type: "sections",
-    max_columns: 2,
-    sections,
-  };
+return {
+  title: cover.name,
+  path: cover.viewPath,
+  subview: true,
+  type: "sections",
+  max_columns: 2,
+  sections: [
+    { type: "grid", cards },
+    { type: "grid", cards: controls },
+  ],
+};
 }
 
 function generateViews(hass) {
@@ -552,9 +542,10 @@ function generateViews(hass) {
     ];
   }
 
-  const views = [overviewView(hub, covers, t)];
-  if (covers.length) views.push(debugView(covers, t));
-  return views;
+  return [
+    overviewView(hub, covers, t),
+    ...covers.map((cover) => coverView(cover, t)).filter(Boolean),
+  ];
 }
 
 class CoverControlDashboardStrategy extends HTMLElement {

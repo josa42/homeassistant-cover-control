@@ -172,6 +172,9 @@ is worth:
 - **The `cover_control_decision` event** fires on every decision, so
   automations can react to or notify on a specific reason code.
 - **Debug logging** via `custom_components.cover_control`.
+- **The dashboard**: an overview listing every cover's state alongside the
+  central controls, and a page per cover behind it with the conditions that
+  decided its position, its movements for the day and its own controls.
 
 Reason codes are stable identifiers, so match automations on `reason_code` and
 never on the human sentence.

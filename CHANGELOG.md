@@ -24,6 +24,15 @@
   behind, and a blank line inside a list ends the list and starts another with a
   paragraph of air between them, which is what the conditions used to look like.
 
+- **The overview is a list of states, and every cover has its own page.** It
+  answers one question now: which cover is in which state. The controls for a
+  single cover moved off it, and the central ones stayed, because switching the
+  whole thing off or resuming everything is what a hub view is for.
+
+  Tapping a cover opens its own page: what it wants, why, the conditions behind
+  it, what it did today, and the controls for that one cover. It is a subview,
+  so it comes with a way back and does not add a tab per window.
+
 ### Fixed
 
 - **The shading step size can be overridden per cover, as it was meant to be.**

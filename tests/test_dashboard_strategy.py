@@ -273,23 +273,23 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
         [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
         capture_output=True, text=True, check=True, timeout=30,
     )
-    overview = json.loads(result.stdout)["views"][0]
     names = {
         card["entity"]: card.get("name")
-        for section in overview["sections"]
+        for view in json.loads(result.stdout)["views"]
+        for section in view["sections"]
         for card in section["cards"]
         if card["type"] == "tile" and card["entity"] in entities
     }
+    # The decision, the pause and the manual override are not tiles any more:
+    # they read as conditions in the cover's own view, and a tile beside them
+    # would say the same thing twice.
     assert names == {
         "switch.cc_enabled": "Aktiviert",
         "button.cc_pause_all": "Alle pausieren",
         "button.cc_resume_all": "Alle fortsetzen",
-        "sensor.az_decision": "Entscheidung",
         "button.az_pause": "Pausieren",
         "button.az_resume": "Fortsetzen",
         "switch.az_enabled": "Aktiviert",
-        "binary_sensor.az_override": "Manueller Eingriff",
-        "binary_sensor.az_paused": "Pausiert",
     }
 
 
@@ -390,7 +390,7 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
         capture_output=True, text=True, check=True, timeout=30,
     )
     debug = next(
-        view for view in json.loads(result.stdout)["views"] if view["path"] == "debug"
+        view for view in json.loads(result.stdout)["views"] if view.get("subview")
     )
     cards = [card for section in debug["sections"] for card in section["cards"]]
 
@@ -466,7 +466,7 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
         capture_output=True, text=True, check=True, timeout=30,
     )
     debug = next(
-        view for view in json.loads(result.stdout)["views"] if view["path"] == "debug"
+        view for view in json.loads(result.stdout)["views"] if view.get("subview")
     )
     cards = [card for section in debug["sections"] for card in section["cards"]]
 
@@ -490,4 +490,83 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
     assert conditions, "expected a list of conditions"
     assert conditions == list(range(conditions[0], conditions[0] + len(conditions))), (
         "something sits between the conditions and will render as a gap"
+    )
+
+
+def test_every_cover_gets_its_own_view_linked_from_the_overview(tmp_path) -> None:
+    """The overview answers which cover is in which state and nothing else.
+
+    Two covers share a name here, because a view path that collided would take
+    the reader to the wrong cover's detail without anything looking wrong.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    def cover(slug, device, name):
+        return {
+            f"sensor.{slug}_decision": {
+                "entity_id": f"sensor.{slug}_decision",
+                "platform": "cover_control",
+                "device_id": device,
+                "translation_key": "decision",
+            }
+        }, {
+            f"sensor.{slug}_decision": {
+                "entity_id": f"sensor.{slug}_decision",
+                "state": "cooling",
+                "attributes": {"cover_entity": f"cover.{slug}"},
+            }
+        }, {"id": device, "name": name, "via_device_id": "hub"}
+
+    entities, states, devices = {}, {}, {"hub": {"id": "hub", "name": "Cover Control", "via_device_id": None}}
+    for slug, device, name in (
+        ("a", "a", "Küche Raffstore"),
+        ("b", "b", "Küche Raffstore"),  # same name on purpose
+        ("c", "c", "Bad Rolladen"),
+    ):
+        e, st, dev = cover(slug, device, name)
+        entities.update(e)
+        states.update(st)
+        devices[device] = dev
+    entities["switch.cc"] = {
+        "entity_id": "switch.cc", "platform": "cover_control",
+        "device_id": "hub", "translation_key": "enabled",
+    }
+    states["switch.cc"] = {"entity_id": "switch.cc", "state": "on", "attributes": {}}
+
+    hass = {"locale": {"language": "de"}, "devices": devices,
+            "entities": entities, "states": states}
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    views = json.loads(result.stdout)["views"]
+
+    overview = views[0]
+    details = [view for view in views[1:] if view.get("subview")]
+    assert len(details) == 3, "one view per cover"
+
+    paths = [view["path"] for view in details]
+    assert len(set(paths)) == 3, f"two covers share a view path: {paths}"
+    assert "overview" not in paths, "a cover took the overview's own path"
+
+    links = [
+        card["tap_action"]["navigation_path"]
+        for section in overview["sections"]
+        for card in section["cards"]
+        if card.get("tap_action", {}).get("action") == "navigate"
+    ]
+    assert sorted(links) == sorted(paths), "every cover is reachable from the overview"
+
+    # And nothing to operate a single cover with sits on the overview.
+    overview_cards = [c for s in overview["sections"] for c in s["cards"]]
+    assert not any(card.get("features") for card in overview_cards), (
+        "the overview grew a cover control again"
     )
