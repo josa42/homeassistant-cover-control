@@ -39,6 +39,8 @@ Set once on the hub, inherited by every cover, and overridable per cover:
 - Storm trigger and release wind speeds
 - **Temperature hysteresis**, how far a reading has to fall back past a
   threshold before a running episode ends
+- **Shading step size**, so shading moves in steps instead of following the
+  sun by the percent
 - **Orientation of the south side**, its compass bearing, from which each
   cover's window bearing is worked out. Not overridden
   per cover like the rest of this list; a window that needs its own bearing
@@ -83,6 +85,22 @@ depth, then converts that to a cover position.
 > on the window. That is correct, not a bug, but it is rarely what people want.
 > A value between 0.5 m and 1.5 m usually keeps sun off the furniture while
 > leaving the room bright.
+
+### Shading moves in steps
+
+Following the sun by the percent means a small movement every few minutes all
+afternoon. Shading therefore snaps to a step, a quarter of the glass by
+default, and always rounds towards more cover so the allowed sun depth is never
+exceeded. The cost is up to one step more cover than the geometry asks for; the
+gain is a handful of movements a day instead of dozens.
+
+The step is a share of the **glass**, not of the travel. A roller shutter's
+light gaps sit below its seating point, so a quarter of the glass is a quarter
+of the window for both kinds of cover even though it is a different distance of
+travel: a venetian blind stops at 100, 75, 50, 25 and 0, a roller shutter with
+its seating point at 25 stops at 100, 81, 62, 44 and 25.
+
+A cover that needs no shading at all still opens fully, whatever the step size.
 
 ### Motor percent is not glass area
 

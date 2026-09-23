@@ -45,6 +45,7 @@ from .const import (
     CONF_SEATING_POINT,
     CONF_SHADE_WINDOW_OPEN,
     CONF_SHADED_TILT,
+    CONF_SHADING_STEP,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
     CONF_TEMP_HYSTERESIS,
@@ -144,6 +145,9 @@ def _hub_schema(
             vol.Required(
                 CONF_TEMP_HYSTERESIS, default=default(CONF_TEMP_HYSTERESIS)
             ): _number(0, 5, 0.1, "°C"),
+            vol.Required(
+                CONF_SHADING_STEP, default=default(CONF_SHADING_STEP)
+            ): _number(0, 50, 5, "%"),
             vol.Required(
                 CONF_PV_THRESHOLD, default=default(CONF_PV_THRESHOLD)
             ): _number(0, 30000, 50, "W"),

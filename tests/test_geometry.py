@@ -102,3 +102,54 @@ def test_fully_covered_glass_lets_no_sun_in() -> None:
     """
     assert geometry.penetration_depth(0.0, 0.9, 1.5, 6.77) == 0.0
     assert geometry.penetration_depth(0.0, 0.0, 2.0, 45.0) == 0.0
+
+
+@pytest.mark.parametrize(
+    ("fraction", "expected"),
+    [
+        (1.0, 1.0),      # fully open stays fully open
+        (0.97, 0.75),    # down, never up
+        (0.88, 0.75),    # the example this was asked for
+        (0.75, 0.75),    # sitting exactly on a step stays there
+        (0.26, 0.25),
+        (0.1, 0.0),
+        (0.0, 0.0),
+    ],
+)
+def test_the_glass_fraction_rounds_down_to_the_step(
+    fraction: float, expected: float
+) -> None:
+    assert geometry.step_glass_fraction(fraction, 25) == pytest.approx(expected)
+
+
+def test_a_step_that_does_not_divide_the_travel_keeps_fully_open() -> None:
+    """Otherwise a cover needing no shading would be driven down a step."""
+    assert geometry.step_glass_fraction(1.0, 30) == 1.0
+    assert geometry.step_glass_fraction(0.97, 30) == pytest.approx(0.9)
+
+
+def test_a_step_of_zero_leaves_the_fraction_alone() -> None:
+    assert geometry.step_glass_fraction(0.88, 0) == pytest.approx(0.88)
+
+
+@pytest.mark.parametrize("step", [5, 10, 20, 25, 30, 50])
+def test_stepping_never_lets_more_sun_in(step: int) -> None:
+    """Rounding the wrong way would break the promise the whole thing makes."""
+    for raw in range(0, 101):
+        fraction = raw / 100
+        assert geometry.step_glass_fraction(fraction, step) <= fraction + 1e-9
+
+
+def test_the_step_is_a_share_of_the_glass_not_of_the_travel() -> None:
+    """A roller shutter's light gaps sit below its seating point.
+
+    So a quarter of the glass is a quarter of the window for both kinds, even
+    though it is a different distance of travel.
+    """
+    stops = [
+        geometry.glass_to_position(geometry.step_glass_fraction(f / 100, 25), seat)
+        for seat in (0, 25)
+        for f in (100, 75, 50, 25, 0)
+    ]
+    assert stops[:5] == [100, 75, 50, 25, 0], "venetian blind"
+    assert stops[5:] == [100, 81, 62, 44, 25], "roller shutter with light gaps"

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **Shading moves in steps.** Following the sun by the percent means a small
+  movement every few minutes all afternoon. The new **Shading step size** snaps
+  shading to a step instead, a quarter of the glass by default, and always
+  rounds towards more cover so the allowed sun depth is never exceeded. That
+  costs up to one step more cover than the geometry asks for and buys a handful
+  of movements a day instead of dozens. 0 switches it off.
+
+  The step is a share of the glass, not of the travel, so a roller shutter with
+  light gaps steps by the same share of window as a venetian blind: 100, 81,
+  62, 44, 25 against 100, 75, 50, 25, 0. A cover needing no shading at all
+  still opens fully whatever the step size.
+
+  Every existing cover starts stepping with this release, because the default
+  is a quarter rather than off.
+
 ### Changed
 
 - **The debug view answers the question in order and in German.** What it wants,

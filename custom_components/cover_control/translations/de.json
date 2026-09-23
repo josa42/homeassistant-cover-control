@@ -15,6 +15,7 @@
           "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
           "temp_hysteresis": "Temperatur-Hysterese",
+          "shading_step": "Schrittweite der Beschattung",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -31,7 +32,8 @@
           "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen.",
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
           "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
-          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab."
+          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab.",
+          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab."
         }
       }
     },
@@ -55,6 +57,7 @@
           "indoor_cool_above": "Innentemperatur bestätigt Beschattung über",
           "indoor_heat_below": "Innentemperatur bestätigt Heizen unter",
           "temp_hysteresis": "Temperatur-Hysterese",
+          "shading_step": "Schrittweite der Beschattung",
           "pv_threshold": "PV-Leistung gilt als hell ab",
           "pv_override_threshold": "PV-Leistung übersteuert die Wetterlage ab",
           "allowed_weather_states": "Wetterlagen, bei denen gehandelt wird",
@@ -71,7 +74,8 @@
           "wind_release": "Muss unter dem Auslösewert liegen, damit Böen die Rollläden nicht pendeln lassen.",
           "notify_target": "Notify-Dienst, der bei jeder Änderung eine Nachricht bekommt, zum Beispiel notify.mobile_app_handy. Leer lassen für keine Benachrichtigungen.",
           "dry_run": "Auswerten und melden, aber keinen Rollladen bewegen. Hier eingeschaltet übersteuert es die Einstellung je Rollladen und kann dort nicht aufgehoben werden.",
-          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab."
+          "temp_hysteresis": "Wie weit eine Temperatur hinter eine Schwelle zurückfallen muss, bevor eine laufende Episode endet. Ein Sensor, der genau auf einer Schwelle liegt, überquert sie schon durch sein eigenes Rauschen, was die Episode beenden und Minuten später wieder starten würde, den ganzen Tag. Gilt nur während einer laufenden Episode, senkt also nie die Schwelle, die eine startet. 0 schaltet sie ab.",
+          "shading_step": "Die Beschattung fährt in Stufen dieser Größe, statt der Sonne prozentweise zu folgen: deutlich weniger und dafür größere Fahrten. Gemeint ist ein Anteil der Scheibe, nicht des Stellwegs, damit ein Rolladen mit Lichtschlitzen um denselben Anteil Fenster stuft wie ein Raffstore. Es wird immer in Richtung mehr Behang gerundet, damit die erlaubte Sonnentiefe nie überschritten wird; das kostet bis zu eine Stufe mehr Behang als nötig. Ein Rollladen, der gar keine Beschattung braucht, fährt weiterhin ganz auf. 0 schaltet die Stufen ab."
         }
       }
     }

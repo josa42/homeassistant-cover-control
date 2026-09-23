@@ -29,6 +29,7 @@ from .const import (
     CONF_SEATING_POINT,
     CONF_SHADE_WINDOW_OPEN,
     CONF_SHADED_TILT,
+    CONF_SHADING_STEP,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
     CONF_TEMP_HYSTERESIS,
@@ -561,7 +562,12 @@ def evaluate(
     max_depth = float(_cover_setting(config, CONF_MAX_DEPTH))
     sill = float(_cover_setting(config, CONF_SILL_HEIGHT))
     height = float(config.cover(CONF_WINDOW_HEIGHT, 1.0))
-    fraction = geometry.required_glass_fraction(max_depth, sill, height, profile)
+    step = float(config.get(CONF_SHADING_STEP))
+    ideal = geometry.required_glass_fraction(max_depth, sill, height, profile)
+    # Everything below reports the stepped fraction, because that is what the
+    # cover is about to do. The ideal is kept beside it so the record shows
+    # what the geometry asked for before the step rounded it down.
+    fraction = geometry.step_glass_fraction(ideal, step)
     position = geometry.glass_to_position(fraction, seating)
 
     geom.update(
@@ -570,7 +576,9 @@ def evaluate(
             "sill_height": sill,
             "window_height": height,
             "seating_point": seating,
-            "required_glass_fraction": round(fraction, 3),
+            "shading_step": step,
+            "required_glass_fraction": round(ideal, 3),
+            "glass_fraction": round(fraction, 3),
             "penetration_depth": round(
                 geometry.penetration_depth(fraction, sill, height, profile), 2
             ),

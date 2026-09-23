@@ -15,6 +15,7 @@
           "indoor_cool_above": "Indoor temperature confirms shading above",
           "indoor_heat_below": "Indoor temperature confirms heating below",
           "temp_hysteresis": "Temperature hysteresis",
+          "shading_step": "Shading step size",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -31,7 +32,8 @@
           "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate.",
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
           "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
-          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off."
+          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off.",
+          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off."
         }
       }
     },
@@ -55,6 +57,7 @@
           "indoor_cool_above": "Indoor temperature confirms shading above",
           "indoor_heat_below": "Indoor temperature confirms heating below",
           "temp_hysteresis": "Temperature hysteresis",
+          "shading_step": "Shading step size",
           "pv_threshold": "PV power counts as bright above",
           "pv_override_threshold": "PV power outranks the weather condition above",
           "allowed_weather_states": "Weather conditions that allow acting",
@@ -71,7 +74,8 @@
           "wind_release": "Must be lower than the trigger value, so gusts do not make covers oscillate.",
           "notify_target": "Notify service that gets a message on every change, for example notify.mobile_app_phone. Leave empty for no notifications.",
           "dry_run": "Evaluate and report, but never move a cover. Switched on here it overrides the per-cover setting; it cannot be cancelled per cover.",
-          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off."
+          "temp_hysteresis": "How far a temperature has to fall back past a threshold before a running episode ends. A sensor resting exactly on a threshold crosses it on its own noise, which would end the episode and start it again a few minutes later, all day. Only applies while an episode runs, so it never lowers the threshold that starts one. 0 switches it off.",
+          "shading_step": "Shading moves in steps of this size instead of following the sun by the percent, which is far fewer and larger movements. It is a share of the glass, not of the travel, so a roller shutter with light gaps steps by the same share of window as a venetian blind. Always rounded towards more cover, so the allowed sun depth is never exceeded, which costs up to one step more cover than the geometry asks for. A cover needing no shading at all still opens fully. 0 switches it off."
         }
       }
     }

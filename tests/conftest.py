@@ -18,6 +18,7 @@ from custom_components.cover_control.const import (
     CONF_PV_POWER,
     CONF_PV_THRESHOLD,
     CONF_SHADED_TILT,
+    CONF_SHADING_STEP,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
     CONF_WEATHER,
@@ -37,6 +38,7 @@ HUB_DATA = {
     CONF_PV_POWER: "sensor.pv",
     CONF_COOL_ABOVE: 25.0,
     CONF_PV_THRESHOLD: 800.0,
+    CONF_SHADING_STEP: 0,
 }
 
 COVER_DATA = {

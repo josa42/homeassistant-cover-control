@@ -21,6 +21,7 @@ from custom_components.cover_control.const import (
     CONF_SEATING_POINT,
     CONF_SHADE_WINDOW_OPEN,
     CONF_SHADED_TILT,
+    CONF_SHADING_STEP,
     CONF_SILL_HEIGHT,
     CONF_STORM_ACTION,
     CONF_TEMP_HYSTERESIS,
@@ -45,6 +46,7 @@ HUB = {
     CONF_WIND_THRESHOLD: 40.0,
     CONF_WIND_RELEASE: 30.0,
     CONF_PV_THRESHOLD: 800.0,
+    CONF_SHADING_STEP: 0,
     CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
 }
@@ -671,3 +673,55 @@ def test_a_cooling_episode_does_not_relax_the_heating_threshold() -> None:
         indoor_temp=19.0,
     )
     assert decision.intent is not Intent.HEATING
+
+
+# --- shading steps ----------------------------------------------------------
+
+
+def test_shading_snaps_to_the_step() -> None:
+    """Same window and sun as the happy path, which lands on 50% unrounded."""
+    decision, _ = run(hub={CONF_SHADING_STEP: 25})
+    assert decision.target_position == 50
+
+
+def test_a_target_between_steps_rounds_towards_more_cover() -> None:
+    decision, _ = run(hub={CONF_SHADING_STEP: 25}, sun_elevation=35.0)
+    assert decision.geometry["required_glass_fraction"] > 0.25
+    assert decision.geometry["glass_fraction"] == 0.25
+    assert decision.target_position == 25
+
+
+def test_the_record_keeps_what_the_geometry_asked_for() -> None:
+    """So the debug view can say the step rounded it, not the sun."""
+    decision, _ = run(hub={CONF_SHADING_STEP: 25}, sun_elevation=35.0)
+    assert decision.geometry["shading_step"] == 25
+    assert decision.geometry["required_glass_fraction"] != (
+        decision.geometry["glass_fraction"]
+    )
+
+
+def test_the_reported_depth_is_the_one_the_cover_will_actually_let_in() -> None:
+    stepped, _ = run(hub={CONF_SHADING_STEP: 25}, sun_elevation=35.0)
+    smooth, _ = run(hub={CONF_SHADING_STEP: 0}, sun_elevation=35.0)
+    assert stepped.geometry["penetration_depth"] < smooth.geometry["penetration_depth"]
+
+
+def test_covers_step_by_a_quarter_of_the_glass_out_of_the_box() -> None:
+    """Nothing configured must not mean following the sun by the percent."""
+    decision, _ = run(hub={CONF_SHADING_STEP: None})  # unset, so the default
+    assert decision.geometry["shading_step"] == 25.0
+    assert decision.geometry["glass_fraction"] in (0.0, 0.25, 0.5, 0.75, 1.0)
+
+
+def test_a_roller_shutter_steps_by_glass_and_not_by_travel() -> None:
+    """Its light gaps sit below the seating point, so the two differ.
+
+    A quarter of the glass is 18.75 points of travel here, which lands on 62.
+    Stepping the travel instead would land on 50 and cover a third more.
+    """
+    decision, _ = run(
+        cover={CONF_COVER_TYPE: CoverType.ROLLADEN},
+        hub={CONF_SHADING_STEP: 25},
+    )
+    assert decision.geometry["glass_fraction"] == 0.5
+    assert decision.target_position == 62

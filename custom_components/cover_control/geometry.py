@@ -92,6 +92,28 @@ def required_glass_fraction(
     return max(0.0, min(1.0, fraction))
 
 
+def step_glass_fraction(fraction: float, step_percent: float) -> float:
+    """Round an open-glass fraction down to the next step.
+
+    Down rather than to the nearest, because a step up would let the sun
+    further into the room than the depth rule allows, and that rule is the
+    promise the whole calculation makes.
+
+    Fully open is always its own step: a cover that needs no shading at all
+    must not be driven a step down just because the step size does not divide
+    the travel evenly. A step of 0 leaves the fraction alone.
+    """
+    if step_percent <= 0.0:
+        return fraction
+    if fraction >= 1.0:
+        return 1.0
+    step = step_percent / 100.0
+    # The nudge is for binary fractions: 0.6 / 0.2 is 2.9999999999999996, and
+    # without it a fraction sitting exactly on a step drops to the one below.
+    stepped = math.floor(fraction / step + 1e-9) * step
+    return max(0.0, min(1.0, stepped))
+
+
 def glass_to_position(fraction: float, seating_point: int) -> int:
     """Convert an open-glass fraction to a cover position.
 

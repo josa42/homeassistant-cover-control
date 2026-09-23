@@ -148,6 +148,7 @@ CONF_HEAT_BELOW = "heat_below"
 CONF_INDOOR_COOL_ABOVE = "indoor_cool_above"
 CONF_INDOOR_HEAT_BELOW = "indoor_heat_below"
 CONF_TEMP_HYSTERESIS = "temp_hysteresis"
+CONF_SHADING_STEP = "shading_step"
 CONF_PV_THRESHOLD = "pv_threshold"
 CONF_PV_OVERRIDE = "pv_override_threshold"
 CONF_WEATHER_STATES = "allowed_weather_states"
@@ -191,6 +192,7 @@ OVERRIDABLE = (
     CONF_INDOOR_COOL_ABOVE,
     CONF_INDOOR_HEAT_BELOW,
     CONF_TEMP_HYSTERESIS,
+    CONF_SHADING_STEP,
     CONF_PV_THRESHOLD,
     CONF_PV_OVERRIDE,
     CONF_WEATHER_STATES,
@@ -206,6 +208,9 @@ DEFAULTS: dict[str, object] = {
     # Half a degree is more than a sensor's noise and less than a change
     # anybody feels, which is the whole job of this number.
     CONF_TEMP_HYSTERESIS: 0.5,
+    # A quarter of the glass per step. Fewer and larger movements, at the
+    # cost of up to one step more covering than the depth rule asks for.
+    CONF_SHADING_STEP: 25.0,
     CONF_PV_THRESHOLD: 800.0,
     CONF_PV_OVERRIDE: 2500.0,
     CONF_WEATHER_STATES: ["sunny", "partlycloudy"],
