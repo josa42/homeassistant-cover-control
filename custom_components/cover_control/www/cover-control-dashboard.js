@@ -257,6 +257,9 @@ function collect(hass) {
     cover.overrideEntity = cover.entities.override_active;
     cover.enabledEntity = cover.entities.enabled;
     cover.stormEntity = hub && hub.entities.storm_active;
+    cover.hasWindowSensor =
+      state != null && state.attributes.window_open !== undefined
+      && state.attributes.window_open !== null;
   }
 
   covers.sort((a, b) => a.name.localeCompare(b.name));
@@ -438,44 +441,37 @@ function debugView(covers, t) {
     const cards = [
       { type: "heading", heading: cover.name },
       {
-        // What it wants and where it is taking the cover, in two lines.
+        // One card, and every line in it is one rendered line. A bare Jinja
+        // statement on its own line leaves a blank one behind, and a blank
+        // line inside a list ends the list and starts another with a
+        // paragraph of air between them.
         type: "markdown",
         content: [
-          `{% if ${a("dry_run")} %}`,
-          t.dryRunNotice,
-          "{% endif %}",
-          "",
-          `**${t.intent}:** {{ state_translated('${decision}') }}`,
-          "",
-          `{% set p = ${a("target_position")} %}`,
-          `{% set s = ${a("target_tilt")} %}`,
-          "{% if p is none %}",
-          `**${t.goal}:** ${t.nothingToDo}`,
-          "{% else %}",
-          `{% set d = ${a("penetration_depth")} %}`,
-          `{% set limit = ${a("max_penetration_depth")} %}`,
-          `**${t.goal}:** {{ p }} %`
+          // Trimmed on both ends, so a cover not in dry run is not given a
+          // blank line where the notice would have been.
+          `{%- if ${a("dry_run")} %}${t.dryRunNotice}\n\n{% endif -%}`,
+          // Two trailing spaces: a hard break, so the goal is its own line
+          // without the blank one a new paragraph would cost.
+          `**${t.intent}:** {{ state_translated('${decision}') }}  `,
+          `{% set p = ${a("target_position")} %}`
+            + `{%- set s = ${a("target_tilt")} %}`
+            + `{%- set d = ${a("penetration_depth")} %}`
+            + `{%- set limit = ${a("max_penetration_depth")} -%}`,
+          `**${t.goal}:** {% if p is none %}${t.nothingToDo}{% else %}{{ p }} %`
             + `{% if p == 100 %} (${t.fullyOpen}){% elif p == 0 %} (${t.fullyShut}){% endif %}`
             + `{% if s is not none %} · ${t.slats} {{ s }} °{% endif %}`
             + ` — {% if p == 100 and d is not none and limit is not none %}`
             + `${t.noCoverNeeded}: {{ d }} m ${t.ofAllowed} {{ limit }} m ${t.allowed}`
             + `{% elif ${a("acted")} %}${t.didMove}`
             + `{% elif ${a("would_move")} %}${t.wouldMoveNow}`
-            + `{% else %}${t.nothingToDo}{% endif %}`,
-          "{% endif %}",
-        ].join("\n"),
-      },
-      {
-        type: "markdown",
-        title: t.criteria,
-        content: [
+            + `{% else %}${t.nothingToDo}{% endif %}{% endif %}`,
+          "",
           criterion(
             t.cSun,
             a("sun_on_window"),
             `{% if ${a("sun_on_window")} %}${num(decision, "profile_angle", 1, " °")}`
               + `, ${t.reaches} ${num(decision, "penetration_depth", 2, " m")}`
-              + `{% if ${a("max_penetration_depth")} is not none %} ${t.ofAllowed} `
-              + `${num(decision, "max_penetration_depth", 2, " m")} ${t.allowed}{% endif %}`
+              + `{% if limit is not none %} ${t.ofAllowed} {{ limit }} m ${t.allowed}{% endif %}`
               + `{% else %}${t.cSunNo}{% endif %}`,
           ),
           criterion(
@@ -495,9 +491,11 @@ function debugView(covers, t) {
             `${num(decision, "outdoor_temp", 1, "")} / `
               + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`,
           ),
-          `{% if ${a("window_open")} is not none %}`,
-          criterion(t.cWindow, `not ${a("window_open")}`, ""),
-          "{% endif %}",
+          // Whether there is a window contact at all is settled here rather
+          // than in the template, so no line is spent on a cover without one.
+          ...(cover.hasWindowSensor
+            ? [criterion(t.cWindow, `not ${a("window_open")}`, "")]
+            : []),
           ...(cover.stormEntity
             ? [
                 criterion(

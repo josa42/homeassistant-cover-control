@@ -377,7 +377,9 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
             decision: {
                 "entity_id": decision,
                 "state": "cooling",
-                "attributes": {"cover_entity": "cover.az"},
+                # A window contact is configured here, because the view only
+                # spends a line on that condition for a cover that has one.
+                "attributes": {"cover_entity": "cover.az", "window_open": False},
             },
         },
     }
@@ -415,3 +417,77 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
     conditions = [line for line in templates.splitlines() if line.startswith("- {%")]
     assert len(conditions) >= 4, "expected a list of conditions"
     assert all("\u2705" in line and "\u274c" in line for line in conditions)
+
+
+def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
+    """A bare Jinja statement on its own line leaves a blank line behind.
+
+    Inside a markdown list a blank line ends the list and starts another, with
+    a paragraph of air between them, which is what the conditions looked like
+    before they were one card.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    decision = "sensor.az_decision"
+    hass = {
+        "locale": {"language": "de"},
+        "devices": {
+            "hub": {"id": "hub", "name": "Cover Control", "via_device_id": None},
+            "az": {"id": "az", "name": "Arbeitszimmer", "via_device_id": "hub"},
+        },
+        "entities": {
+            "switch.cc": {
+                "entity_id": "switch.cc", "platform": "cover_control",
+                "device_id": "hub", "translation_key": "enabled",
+            },
+            decision: {
+                "entity_id": decision, "platform": "cover_control",
+                "device_id": "az", "translation_key": "decision",
+            },
+        },
+        "states": {
+            "switch.cc": {"entity_id": "switch.cc", "state": "on", "attributes": {}},
+            decision: {
+                "entity_id": decision, "state": "cooling",
+                "attributes": {"cover_entity": "cover.az", "window_open": False},
+            },
+        },
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "harness.js").write_text(_GENERATE_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "harness.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    debug = next(
+        view for view in json.loads(result.stdout)["views"] if view["path"] == "debug"
+    )
+    cards = [card for section in debug["sections"] for card in section["cards"]]
+
+    markdown = [card for card in cards if card["type"] == "markdown"]
+    assert len(markdown) == 1, "the intent and the conditions belong in one card"
+
+    lines = markdown[0]["content"].splitlines()
+
+    bare = [
+        line
+        for line in lines
+        if line.strip().startswith("{%")
+        and line.strip().endswith("%}")
+        and "{{" not in line
+    ]
+    assert all("{%-" in line or "-%}" in line for line in bare), (
+        "an untrimmed Jinja statement line renders as a blank line"
+    )
+
+    conditions = [n for n, line in enumerate(lines) if line.startswith("- {%")]
+    assert conditions, "expected a list of conditions"
+    assert conditions == list(range(conditions[0], conditions[0] + len(conditions))), (
+        "something sits between the conditions and will render as a gap"
+    )

@@ -19,6 +19,12 @@
   diagnostics only, and all three are things somebody reads the debug view to
   check.
 
+- **The debug** is one card: the intent, the goal, and the conditions under them
+  with no gaps. A bare Jinja statement on its own line leaves a blank line
+  behind, and a blank line inside a list ends the list and starts another with a
+  paragraph of air between them, which is what the conditions used to look like.
+
+
 ## 1.8.0 - 2026-09-23
 
 ### Added
