@@ -197,12 +197,18 @@ def test_open_window_blocks_movement() -> None:
     assert decision.intent is Intent.WINDOW_OPEN
     assert decision.target_position is None
     assert decision.blocked_by == "window_open"
+    assert decision.as_attributes()["window_ok"] is False
 
 
 def test_open_window_can_be_opted_out_per_cover() -> None:
     decision, _ = run(cover={CONF_SHADE_WINDOW_OPEN: True}, window_open=True)
     assert decision.intent is Intent.COOLING
     assert decision.target_position == 50
+    # The contact and the gate part ways here, and the debug view reads the
+    # gate: an open window that is shaded anyway is not a failed condition.
+    attributes = decision.as_attributes()
+    assert attributes["window_open"] is True
+    assert attributes["window_ok"] is True
 
 
 def test_master_switch_off_stops_everything() -> None:

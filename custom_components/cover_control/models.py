@@ -124,11 +124,15 @@ class Decision:
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
             "sun_on_window": self.geometry.get("sun_on_window"),
-            # The two conditions that were not readable from anywhere else.
+            # The conditions that were not readable from anywhere else.
             # Flat booleans rather than the gate list, which the recorder would
             # write out in full on every evaluation.
             "temperature_ok": self.gate_passed("temperature"),
+            # Both, because the contact and the gate can disagree: a cover set
+            # to keep shading passes the gate with the window wide open, and a
+            # reader who only saw the raw contact would call that a bug.
             "window_open": self.inputs.get("window_open"),
+            "window_ok": self.gate_passed("window_closed"),
             # The angle the sun actually strikes the window at, which is what
             # decides how far in it reaches: the same elevation far off to the
             # side hardly enters at all. Without it the depth below is a number

@@ -56,7 +56,10 @@ const LABELS = {
     cSunNo: "sun is not on this window",
     cBright: "Bright enough",
     cTemp: "Temperature calls for it",
-    cWindow: "Window closed",
+    cWindow: "Window",
+    wClosed: "closed",
+    wOpenShading: "open, shading carries on",
+    wOpen: "open",
     cStorm: "No storm",
     cPaused: "Not paused",
     cOverride: "Not moved by hand",
@@ -143,7 +146,10 @@ const LABELS = {
     cSunNo: "Sonne steht nicht auf diesem Fenster",
     cBright: "Hell genug",
     cTemp: "Temperatur verlangt es",
-    cWindow: "Fenster geschlossen",
+    cWindow: "Fenster",
+    wClosed: "geschlossen",
+    wOpenShading: "offen, Beschattung läuft weiter",
+    wOpen: "offen",
     cStorm: "Kein Sturm",
     cPaused: "Nicht pausiert",
     cOverride: "Nicht von Hand bewegt",
@@ -486,8 +492,19 @@ function coverView(cover, t) {
         ),
         // Whether there is a window contact at all is settled here rather
         // than in the template, so no line is spent on a cover without one.
+        // The tick comes from the gate, not from the contact: a cover set to
+        // keep shading passes with the window open, and the detail is what
+        // tells the reader that the window is open all the same.
         ...(cover.hasWindowSensor
-          ? [criterion(t.cWindow, `not ${a("window_open")}`, "")]
+          ? [
+              criterion(
+                t.cWindow,
+                a("window_ok"),
+                `{% if not ${a("window_open")} %}${t.wClosed}`
+                  + `{% elif ${a("window_ok")} %}${t.wOpenShading}`
+                  + `{% else %}${t.wOpen}{% endif %}`,
+              ),
+            ]
           : []),
         ...(cover.stormEntity
           ? [

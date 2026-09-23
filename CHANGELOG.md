@@ -1,18 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The window condition reads the gate, not the contact.** A cover set to keep
+  shading with the window open was shaded correctly and still showed
+  `❌ Fenster geschlossen`, because the debug view rebuilt the condition from
+  the raw contact instead of asking the engine how the gate went. The decision
+  sensor now carries `window_ok` beside `window_open`, and the line reads
+  `✅ Fenster — offen, Beschattung läuft weiter`: one source of truth, and the
+  reader still learns the window is open.
+
 ## 1.10.0 - 2026-09-23
 
 ### Added
 
-- **The goal says why it is the number it is.** Every condition can hold and
-  the cover still stay fully open, because the conditions only decide whether
-  to shade at all: how much cover it takes is geometry, and the sun can be on
-  the window, bright and hot and still reach no further into the room than is
-  allowed. The goal now reads `100 % (fully open) — no cover needed: 0.99 m of
-  1.00 m allowed`, and the sun condition names the limit it is measured
-  against rather than a depth with nothing to compare it to.
-
-### Added
+- **The decision sensor reports the allowed sun depth.** It was in the
+  diagnostics only, and the depth beside it was a number with nothing to
+  compare it against, though that comparison is what decides the position.
 
 - **Every cover keeps a list of its day.** A `Today` sensor per cover carries
   what actually happened to it, and the cover's page renders it:
@@ -36,15 +42,20 @@
 
 ### Changed
 
-- **The decision sensor reports whether the temperature called for it**, the
-  allowed sun depth, and whether the window is open. All three were in the
-  diagnostics only, and all three are things somebody reads the debug view to
-  check.
+- **The debug view is one card, with no air between the conditions.** A bare
+  Jinja statement on its own line leaves a blank line behind, and a blank line
+  inside a list ends the list and starts another with a paragraph of space
+  between them, which is what the conditions used to look like. The intent and
+  the goal sit in the same card as them now.
 
-- **The debug** is one card: the intent, the goal, and the conditions under them
-  with no gaps. A bare Jinja statement on its own line leaves a blank line
-  behind, and a blank line inside a list ends the list and starts another with a
-  paragraph of air between them, which is what the conditions used to look like.
+- **The overview is a list of states, and every cover has its own page.** It
+  answers one question now: which cover is in which state. The controls for a
+  single cover moved off it, and the central ones stayed, because switching the
+  whole thing off or resuming everything is what a hub view is for.
+
+  Tapping a cover opens its own page: what it wants, why, the conditions behind
+  it, what it did today, and the controls for that one cover. It is a subview,
+  so it comes with a way back and does not add a tab per window.
 
 - **The slat angle is set once for the house.** It was a required field on
   every cover, so the same number had to be typed per window and changing your
@@ -56,17 +67,15 @@
   already carrying an angle keep it, because what used to be the field is now
   the override.
 
-
-- **The overview is a list of states, and every cover has its own page.** It
-  answers one question now: which cover is in which state. The controls for a
-  single cover moved off it, and the central ones stayed, because switching the
-  whole thing off or resuming everything is what a hub view is for.
-
-  Tapping a cover opens its own page: what it wants, why, the conditions behind
-  it, what it did today, and the controls for that one cover. It is a subview,
-  so it comes with a way back and does not add a tab per window.
-
 ### Fixed
+
+- **The goal says why it is the number it is.** Every condition can hold and
+  the cover still stay fully open, because the conditions only decide whether
+  to shade at all: how much cover it takes is geometry, and the sun can be on
+  the window, bright and hot and still reach no further into the room than is
+  allowed. The goal now reads `100 % (fully open) — no cover needed: 0.99 m of
+  1.00 m allowed`, and the sun condition names the limit it is measured
+  against rather than a depth with nothing to compare it to.
 
 - **The shading step size can be overridden per cover, as it was meant to be.**
   The engine resolved it cover-first from the day it landed, but only the hub

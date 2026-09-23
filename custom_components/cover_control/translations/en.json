@@ -253,6 +253,9 @@
           "window_open": {
             "name": "Window open"
           },
+          "window_ok": {
+            "name": "Window allows shading"
+          },
           "profile_angle": {
             "name": "Angle of the sun on the window"
           },

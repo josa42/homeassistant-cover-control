@@ -253,6 +253,9 @@
           "window_open": {
             "name": "Fenster offen"
           },
+          "window_ok": {
+            "name": "Fenster erlaubt Beschattung"
+          },
           "profile_angle": {
             "name": "Winkel der Sonne auf dem Fenster"
           },
