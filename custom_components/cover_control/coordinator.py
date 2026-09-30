@@ -326,10 +326,16 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         non-matching context only counts once the cover has had time to finish
         travelling, and a report that agrees with where we sent it is ours
         however foreign the context looks.
+
+        Until something has actually been commanded there is no such position
+        to judge against, which is every cover's state after a restart and the
+        whole life of one that was already where it needed to be. The movement
+        itself is the signal then: the cover left a position nothing here asked
+        it to leave.
         """
         if runtime.is_ours(event.context):
             return None
-        new_state = event.data.get("new_state")
+        new_state, old_state = event.data.get("new_state"), event.data.get("old_state")
         if new_state is None:
             return None
         position = new_state.attributes.get("current_position")
@@ -338,10 +344,17 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         last = runtime.last_command
         if last is not None and dt_util.utcnow() - last < SETTLE_TIME:
             return None
-        if (
-            runtime.expected_position is not None
-            and abs(position - runtime.expected_position) <= MIN_MOVEMENT_DELTA
-        ):
+        reference = runtime.expected_position
+        if reference is None:
+            # No command behind us, so the cover's own last reading is the
+            # reference. None of it on the very first report after a restart,
+            # where there is nothing to have moved away from yet.
+            reference = (
+                None if old_state is None else old_state.attributes.get("current_position")
+            )
+            if reference is None:
+                return None
+        if abs(position - reference) <= MIN_MOVEMENT_DELTA:
             return None
         return position
 
@@ -369,11 +382,10 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.state.active
             and not runtime.state.override
             and not runtime.dry_run
-            and runtime.expected_position is not None
         )
         if handing_over:
             _LOGGER.debug(
-                "%s moved to %s%% by someone else (we asked for %s%%); "
+                "%s moved to %s%% by someone else (we last asked for %s); "
                 "handing control over until this episode ends",
                 runtime.cover_entity,
                 position,

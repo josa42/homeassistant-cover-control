@@ -679,3 +679,25 @@ async def test_a_takeover_says_control_was_handed_over(
 
     assert runtime(entry).events[-1]["cause"] == "handed_over"
     assert runtime(entry).state.override
+
+
+async def test_a_cover_can_be_grabbed_before_we_have_commanded_anything(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """Regression: a restart left every cover ungrabbable until it first moved.
+
+    Nothing is commanded to a cover that is already where the engine wants it,
+    and the takeover was judged against the position of the last command. With
+    no command behind it there was nothing to judge, so a cover moved by hand
+    was quietly driven back on the next evaluation.
+    """
+    set_scene(position=50, tilt=45)  # already where the engine wants it
+    await setup_entry(entry)
+    assert runtime(entry).state.active
+    assert runtime(entry).expected_position is None, "nothing has been commanded"
+
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    await human_moves(hass, 100)
+
+    assert runtime(entry).state.override, "the cover was moved by hand"
+    assert runtime(entry).events[-1]["cause"] == "handed_over"

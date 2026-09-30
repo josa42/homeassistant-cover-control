@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A cover can be taken by hand before it has been commanded.** Handing
+  control over was judged against the position of the last command, and a
+  cover that is already where the engine wants it is never commanded at all.
+  So after a restart, and for any cover that had not moved yet that day, a
+  movement by hand was recorded but never took the cover off the engine: the
+  next evaluation drove it straight back, and the debug view still read
+  `Nicht von Hand bewegt`. With no command behind it, the cover's own last
+  reading is the reference now, so leaving a position nothing here asked it to
+  leave is enough.
+
 ## 1.12.0 - 2026-09-30
 
 ### Added
