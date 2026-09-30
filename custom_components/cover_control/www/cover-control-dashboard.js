@@ -35,9 +35,9 @@ const LABELS = {
     sun: "Sun",
     evPaused: "paused",
     evResumed: "resumed",
-    evOverride: "moved by hand to",
+    evOverride: "moved by hand",
     evSlats: "slats",
-    planned: "still to come today",
+    now: "now",
     causes: {
       sun_on_glass: "sun is on the glass",
       sun_deeper: "sun reaching deeper",
@@ -63,7 +63,6 @@ const LABELS = {
     fullyShut: "fully shut",
     slats: "slats",
     criteria: "Conditions",
-    actionsToday: "Sent today",
     noActions: "Nothing sent today.",
     cSun: "Sun on the window",
     cSunNo: "sun is not on this window",
@@ -124,9 +123,9 @@ const LABELS = {
     sun: "Sonne",
     evPaused: "pausiert",
     evResumed: "fortgesetzt",
-    evOverride: "von Hand bewegt auf",
+    evOverride: "von Hand bewegt",
     evSlats: "Lamellen",
-    planned: "heute noch geplant",
+    now: "jetzt",
     causes: {
       sun_on_glass: "Sonne auf dem Glas",
       sun_deeper: "Sonne dringt tiefer ein",
@@ -167,7 +166,6 @@ const LABELS = {
     fullyShut: "ganz zu",
     slats: "Lamellen",
     criteria: "Bedingungen",
-    actionsToday: "Heute gestellt",
     noActions: "Heute nichts gestellt.",
     cSun: "Sonne auf dem Fenster",
     cSunNo: "Sonne steht nicht auf diesem Fenster",
@@ -367,45 +365,81 @@ function weatherWord(entity, t) {
  * the last 24 hours rather than the day, and phrases it its own way.
  *
  * The plan is rendered from the decision sensor, which carries it because it
- * is written on every evaluation anyway, and dimmed: what a cover did and what
- * it is going to do must never be mistaken for one another, so the planned
- * entries are greyed and italic rather than merely listed further down.
+ * is written on every evaluation anyway. A rule saying "now" divides the two,
+ * and everything below it is dimmed: what a cover did and what it is going to
+ * do must never be mistaken for one another.
+ *
+ * Laid out as a grid rather than as sentences, because a day is read down a
+ * column: the times under each other, the percentages under each other and
+ * right aligned, so 5 % and 100 % end at the same place. No rules between the
+ * rows and no header, which would make five lines look like a report.
  */
 function todayCard(entity, decision, t) {
   const causes = Object.entries(t.causes)
     .map(([code, word]) => `'${code}': '${word}'`)
     .join(", ");
-  // One entry, whichever list it came from: the plan is made of the same
-  // shape, so a change to how a movement reads lands on both at once.
-  const entry =
-    "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}"
-      + `{% if e.kind == 'move' %} {% if e.up %}\u2191{% else %}\u2193{% endif %}`
-      + "{% if e.position is defined %} {{ e.position }} %{% endif %}"
-      + `{% if e.tilt is defined %} \u00b7 ${t.evSlats} {{ e.tilt }} \u00b0{% endif %}`
-      + `{% elif e.kind == 'paused' %} \u23f8 ${t.evPaused}`
-      + `{% elif e.kind == 'resumed' %} \u25b6 ${t.evResumed}`
-      + `{% elif e.kind == 'override' %} \u270b ${t.evOverride} {{ e.position }} %`
-      + "{% endif %}"
-      // Four words on why it moved. A pause, a resume and a takeover say it
-      // already, and an entry recorded before this existed carries no cause.
-      + "{% if e.cause is defined and e.cause %} \u2014 "
-      + `{{ {${causes}}.get(e.cause, e.cause) }}{% endif %}`;
-  // The colour is a theme variable rather than a grey, so the dimming holds up
-  // in a dark theme as well as a light one.
-  const dim = (body) =>
-    `<span style="color: var(--secondary-text-color)"><em>${body}</em></span>`;
+  const faint = "color: var(--secondary-text-color)";
+
+  // One entry is four cells, and the plan is made of the same shape, so a
+  // change to how a movement reads lands on both lists at once.
+  const cells = [
+    "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}",
+    `{% if e.kind == 'move' %}{% if e.up %}↑{% else %}↓{% endif %}`
+      + `{% elif e.kind == 'override' %}✋`
+      + `{% elif e.kind == 'paused' %}⏸`
+      + `{% elif e.kind == 'resumed' %}▶{% endif %}`,
+    "{% if e.position is defined and e.position is not none %}{{ e.position }} %{% endif %}",
+    // Why it moved, in four words. A pause and a resume are their own reason,
+    // and an entry recorded before causes existed carries none.
+    `{% if e.cause is defined and e.cause %}{{ {${causes}}.get(e.cause, e.cause) }}`
+      + `{% elif e.kind == 'override' %}${t.evOverride}`
+      + `{% elif e.kind == 'paused' %}${t.evPaused}`
+      + `{% elif e.kind == 'resumed' %}${t.evResumed}{% endif %}`
+      + `{% if e.tilt is defined %} · ${t.evSlats} {{ e.tilt }} °{% endif %}`,
+  ];
+
+  // The percentage is the only cell read as a quantity, so it is the only one
+  // aligned right. The dimming is a theme variable rather than a grey, so it
+  // holds up in a dark theme as well as a light one.
+  const row = (dim) =>
+    cells
+      .map((cell, column) => {
+        const style = [column === 2 ? "text-align: right" : "", dim ? faint : ""]
+          .filter(Boolean)
+          .join("; ");
+        const body = dim ? `<em>${cell}</em>` : cell;
+        return `<span${style ? ` style="${style}"` : ""}>${body}</span>`;
+      })
+      .join("");
+
+  // A rule across the whole grid with the word in the middle of it, rather
+  // than a heading over the plan: the reader is looking for where they are in
+  // the day, and that is a line, not a title.
+  const line = `<span style="border-top: 1px solid currentColor; opacity: 0.3;`
+    + ` flex: 1"></span>`;
+  const divider =
+    `<span style="grid-column: 1 / -1; ${faint}; display: flex;`
+      + ` align-items: center; gap: 8px; margin: 2px 0">`
+      + `${line}${t.now}${line}</span>`;
+
+  // Every bit of it on one line: a bare Jinja statement of its own leaves a
+  // blank line behind, and a blank line inside a block of HTML ends the block.
+  const grid =
+    '<div style="display: grid; grid-template-columns: auto auto auto 1fr;'
+      + ' column-gap: 12px; row-gap: 2px; align-items: baseline">'
+      + "{% for e in events %}" + row(false) + "{% endfor %}"
+      + divider
+      + "{% for e in plan %}" + row(true) + "{% endfor %}"
+      + "</div>";
 
   return {
     type: "markdown",
-    title: t.actionsToday,
-    content: [
+    content:
       `{% set events = state_attr('${entity}', 'events') or [] %}`
         + `{% set plan = state_attr('${decision}', 'plan') or [] %}`
-        + "{% if events | count == 0 and plan | count == 0 %}" + t.noActions + "{% endif %}"
-        + "{% for e in events %}" + entry + "  \n{% endfor %}"
-        + "{% if plan | count > 0 %}" + dim(t.planned) + "  \n{% endif %}"
-        + "{% for e in plan %}" + dim(entry) + "  \n{% endfor %}",
-    ].join("\n"),
+        + "{% if events | count == 0 and plan | count == 0 %}"
+        + t.noActions
+        + "{% else %}" + grid + "{% endif %}",
   };
 }
 

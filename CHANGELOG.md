@@ -13,6 +13,17 @@
   full of yesterday. A file that cannot be read costs the day's list and
   nothing else.
 
+### Changed
+
+- **The day's list is a grid, and has lost its headline.** Four columns, so a
+  day is read down them: the time, which way it went, the percentage aligned
+  right so 5 % and 100 % end at the same place, and why. No rules between the
+  rows and no header row, which would make five lines look like a report. The
+  card had `Heute gestellt` written across the top of it, which said nothing
+  the list below did not, and where the plan began there was a heading; it is
+  a rule saying `jetzt` now, because the reader is looking for where they are
+  in the day and that is a line, not a title.
+
 ### Fixed
 
 - **The plan no longer repeats the movement going out this minute.** The sun
