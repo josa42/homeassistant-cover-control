@@ -133,7 +133,15 @@ class CoverRuntime:
             last = self.events[-1]
             since = now - dt_util.parse_datetime(last["at"])
             if last["kind"] == "move" and since < SETTLE_TIME:
-                last.update({k: v for k, v in detail.items() if v is not None})
+                # Everything but the cause: the slats and the run are one
+                # movement, and what caused it is what caused the first of them.
+                last.update(
+                    {
+                        key: value
+                        for key, value in detail.items()
+                        if value is not None and key != "cause"
+                    }
+                )
                 return
         self.events.append({"at": now.isoformat(), "kind": kind, **detail})
 
@@ -750,6 +758,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         runtime.record_event(
             "move",
             now,
+            cause=None if decision.cause is None else str(decision.cause),
             **(
                 {
                     "position": command.value,

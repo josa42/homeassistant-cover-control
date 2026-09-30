@@ -605,3 +605,18 @@ async def test_the_day_list_empties_when_the_day_turns(
     today = hass.states.get("sensor.raffstore_today")
     assert today.state == "0", "yesterday's movements are still listed as today's"
     assert today.attributes["events"] == []
+
+
+async def test_a_recorded_movement_says_what_caused_it(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """One movement, one cause: the slats and the run are not two reasons."""
+    set_scene()  # slats at 100, so the movement is a tilt and a run
+    await setup_entry(entry)
+    ours = Context(id=next(iter(runtime(entry)._contexts)))
+    await report(hass, "open", 100, 45, ours)
+    await entry.runtime_data.async_refresh()
+
+    events = runtime(entry).events
+    assert len(events) == 1
+    assert events[0]["cause"] == "sun_on_glass", "the sun arriving started this"

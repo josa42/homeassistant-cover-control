@@ -29,6 +29,23 @@
   anyway, and is marked unrecorded: a list that shifts every five minutes has
   no business in the database.
 
+- **Every movement says what caused it**, in four words, past and planned
+  alike:
+
+  ```
+  08:32 ↓ 0 % · Lamellen 50 ° — Sonne auf dem Glas
+  09:28 ↑ 25 % — Sonne lässt nach
+  heute noch geplant
+  15:20 ↑ 50 % — Sonne lässt nach
+  19:15 ↑ 100 % — Sonne ist vom Glas
+  ```
+
+  The cause is worked out where the engine knows it, so the end of an episode
+  names the gate that actually failed rather than blaming the sun for a cloud
+  or a cool afternoon. A movement keeps one cause however many commands it
+  takes, and a pause, a resume or a manual takeover carries none, because the
+  entry already says what happened.
+
 - **The debug view shows the forecast high.** The temperature gate compares
   `Shade above` against the outdoor sensor *and* today's forecast maximum, and
   either one passing is enough. Only the outdoor reading was on the card, so a

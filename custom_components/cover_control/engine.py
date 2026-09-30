@@ -43,6 +43,7 @@ from .const import (
     GATE_DEBOUNCE,
     MIN_MOVEMENT_DELTA,
     PV_OVERRIDE_SUSTAIN,
+    Cause,
     CoverType,
     Facade,
     Intent,
@@ -154,6 +155,17 @@ def _window_azimuth(config: EffectiveConfig) -> float:
     return (orientation + FACADE_OFFSET[facade]) % 360.0
 
 
+def _shading_cause(started: bool, target: int, current: int | None) -> Cause:
+    """Why a shading run is going out: the sun arriving, or the sun moving.
+
+    Lower is more cover, so a cover being sent down is one the sun is reaching
+    further into the room past, and one being sent up has the sun easing off.
+    """
+    if started or current is None:
+        return Cause.SUN_ON_GLASS
+    return Cause.SUN_DEEPER if target < current else Cause.SUN_SHALLOWER
+
+
 def _plan_rest_of_day(
     inputs: Inputs,
     config: EffectiveConfig,
@@ -186,23 +198,34 @@ def _plan_rest_of_day(
     for when, elevation, sun_azimuth in inputs.sun_track:
         delta = geometry.azimuth_delta(sun_azimuth, azimuth)
         if geometry.sun_on_window(elevation, delta, fov_left, fov_right):
-            active, false_since = True, None
             profile = geometry.profile_angle(elevation, delta)
             target = 100 if heating else shading_position(config, profile)
+            cause = (
+                Cause.SUN_WARMS
+                if heating
+                else _shading_cause(not active, target, position)
+            )
+            active, false_since = True, None
             # A cover driven fully up has no angle left to set, exactly as the
             # decision itself decides.
             target_tilt = None if target == 100 else shaded_tilt
         elif active:
             # The gates are false, but an episode is not ended by a passing
-            # cloud or a sun that has just slipped off the window.
+            # cloud or a sun that has just slipped off the window. Only the sun
+            # can end one here: every other gate is held where it stands.
             false_since = false_since or when
             if when - false_since < GATE_DEBOUNCE:
                 continue
             active, target, target_tilt = False, 100, None
+            cause = Cause.SUN_LEFT
         else:
             continue
 
-        entry: dict[str, Any] = {"at": when.isoformat(), "kind": "move"}
+        entry: dict[str, Any] = {
+            "at": when.isoformat(),
+            "kind": "move",
+            "cause": str(cause),
+        }
         if (
             inputs.supports_tilt
             and target_tilt is not None
@@ -255,6 +278,7 @@ def evaluate(
         position: int | None = None,
         tilt: int | None = None,
         blocked_by: str | None = None,
+        cause: Cause | None = None,
         geom: dict | None = None,
         new_state: EpisodeState | None = None,
     ) -> tuple[Decision, EpisodeState]:
@@ -274,6 +298,7 @@ def evaluate(
             target_position=position,
             target_tilt=tilt,
             blocked_by=blocked_by,
+            cause=cause,
             episode_active=(new_state or state).active,
             inputs=raw_inputs,
             gates=gates,
@@ -376,6 +401,7 @@ def evaluate(
             Reason.STORM_WIND,
             f"Storm protection: wind {wind} km/h reached the {threshold} km/h "
             f"threshold, moving to {target}%.",
+            cause=Cause.STORM,
             position=target,
             tilt=100 if inputs.supports_tilt else None,
             new_state=new_state,
@@ -561,6 +587,9 @@ def evaluate(
     }
 
     # --- episode bookkeeping ------------------------------------------------
+    # Read before the state is replaced below: the first movement of an episode
+    # is caused by the sun arriving, and every one after it by the sun moving.
+    episode_started = not state.active
     if desired in (Intent.COOLING, Intent.HEATING):
         state = EpisodeState(
             active=True,
@@ -610,6 +639,11 @@ def evaluate(
             Intent.NEUTRAL,
             Reason.EPISODE_ENDED,
             "Episode ended, opening fully and releasing any manual override.",
+            cause=Cause.SUN_LEFT
+            if not on_window
+            else Cause.NOT_BRIGHT
+            if not bright
+            else Cause.TEMP_NEUTRAL,
             position=100,
             tilt=100 if inputs.supports_tilt else None,
             geom=geom,
@@ -666,6 +700,7 @@ def evaluate(
             Reason.SOLAR_HEATING,
             f"Solar heating: outdoor {inputs.outdoor_temp} C is below "
             f"{heat_below} C and the sun is on the window, opening fully.",
+            cause=Cause.SUN_WARMS,
             position=100,
             tilt=100 if inputs.supports_tilt else None,
             geom=geom,
@@ -704,6 +739,7 @@ def evaluate(
         f"Shading to {position}%: the sun would otherwise reach "
         f"{geometry.penetration_depth(1.0, sill, height, profile):.2f} m into "
         f"the room, and at most {max_depth:.2f} m is allowed.",
+        cause=_shading_cause(episode_started, position, inputs.current_position),
         position=position,
         tilt=tilt_angle if inputs.supports_tilt else None,
         geom=geom,

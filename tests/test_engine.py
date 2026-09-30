@@ -864,8 +864,57 @@ def test_the_plan_sets_the_slats_with_the_first_movement() -> None:
         {
             "at": (NOW + timedelta(minutes=60)).isoformat(),
             "kind": "move",
+            "cause": "sun_deeper",
             "tilt": 45,
             "up": False,
             "position": 50,
         }
     ]
+
+
+# --- why a movement happened ------------------------------------------------
+
+
+def test_the_first_movement_of_an_episode_is_the_sun_arriving() -> None:
+    decision, state = run()
+    assert str(decision.cause) == "sun_on_glass"
+
+    # The sun climbs, the cover eases off, and the episode is already running.
+    later, _ = run(state, current_position=50, sun_elevation=70.0)
+    assert str(later.cause) == "sun_shallower"
+
+    deeper, _ = run(state, current_position=100, sun_elevation=30.0)
+    assert str(deeper.cause) == "sun_deeper"
+
+
+def test_the_end_of_an_episode_names_the_gate_that_failed() -> None:
+    """Three ways for a day to end, and the list must not call them all sunset."""
+    running = EpisodeState(active=True, intent=Intent.COOLING, gate_false_since=NOW)
+    late = NOW + timedelta(minutes=30)
+
+    gone, _ = run(running, now=late, sun_azimuth=0.0)
+    assert gone.reason is Reason.EPISODE_ENDED
+    assert str(gone.cause) == "sun_left"
+
+    dark, _ = run(running, now=late, weather="rainy", pv_power=10.0)
+    assert str(dark.cause) == "not_bright"
+
+    cool, _ = run(running, now=late, outdoor_temp=18.0)
+    assert str(cool.cause) == "temp_neutral"
+
+
+def test_storm_and_solar_heating_say_so() -> None:
+    assert str(run(wind_speed=60.0)[0].cause) == "storm"
+    assert str(run(outdoor_temp=5.0)[0].cause) == "sun_warms"
+
+
+def test_every_planned_entry_says_what_will_cause_it() -> None:
+    decision, _ = run(
+        sun_track=sun_track(
+            (0, 45.0, 180.0),  # half the glass, which is where it is now
+            (60, 55.0, 180.0),  # the sun eases off, the cover opens a little
+            (120, 20.0, 300.0),  # off the window: the debounce starts running
+            (180, 15.0, 310.0),  # and has run, so the episode ends
+        )
+    )
+    assert [entry["cause"] for entry in decision.plan] == ["sun_shallower", "sun_left"]

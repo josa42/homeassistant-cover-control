@@ -158,6 +158,14 @@ and the temperature stay as they are. A cover that is paused, moved by hand or
 shut out by the weather plans nothing, because on today's conditions it is not
 going to do anything.
 
+Every movement in both halves of the list carries a few words on what caused
+it: the sun arriving on the glass, the sun reaching deeper or easing off, the
+sun leaving, a sky that is no longer bright, a temperature that no longer calls
+for it, solar heating or a storm. It is a coarser answer than the decision's
+reason code on purpose, because a line in a list of a day has room for four
+words. A pause, a resume and a manual takeover carry none, since the entry
+already says what happened.
+
 The plan is published on the decision sensor, which is written on every
 evaluation anyway, and marked unrecorded, so a list that shifts every five
 minutes never reaches the database.

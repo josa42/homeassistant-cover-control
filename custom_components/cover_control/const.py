@@ -103,6 +103,25 @@ class Intent(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class Cause(StrEnum):
+    """Why one movement happened, in a handful of words.
+
+    Deliberately coarser than :class:`Reason`: this one is read in a list of a
+    day's movements, where a line has room for four words and the reader wants
+    to know what moved the cover, not the whole chain that led there.
+    """
+
+    SUN_ON_GLASS = "sun_on_glass"
+    #: The sun is reaching further in, so more of the glass is covered.
+    SUN_DEEPER = "sun_deeper"
+    SUN_SHALLOWER = "sun_shallower"
+    SUN_LEFT = "sun_left"
+    NOT_BRIGHT = "not_bright"
+    TEMP_NEUTRAL = "temp_neutral"
+    SUN_WARMS = "sun_warms"
+    STORM = "storm"
+
+
 class Reason(StrEnum):
     """Stable machine-readable reason codes.
 

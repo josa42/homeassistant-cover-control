@@ -38,6 +38,16 @@ const LABELS = {
     evOverride: "moved by hand to",
     evSlats: "slats",
     planned: "still to come today",
+    causes: {
+      sun_on_glass: "sun is on the glass",
+      sun_deeper: "sun reaching deeper",
+      sun_shallower: "sun easing off",
+      sun_left: "sun left the glass",
+      not_bright: "no longer bright",
+      temp_neutral: "no longer warm enough",
+      sun_warms: "sun warms the room",
+      storm: "storm",
+    },
     coversHeld: "Being positioned",
     coversLoose: "Left alone",
     details: "Details",
@@ -116,6 +126,16 @@ const LABELS = {
     evOverride: "von Hand bewegt auf",
     evSlats: "Lamellen",
     planned: "heute noch geplant",
+    causes: {
+      sun_on_glass: "Sonne auf dem Glas",
+      sun_deeper: "Sonne dringt tiefer ein",
+      sun_shallower: "Sonne lässt nach",
+      sun_left: "Sonne ist vom Glas",
+      not_bright: "nicht mehr hell genug",
+      temp_neutral: "nicht mehr warm genug",
+      sun_warms: "Sonne wärmt den Raum",
+      storm: "Sturm",
+    },
     coversHeld: "Wird gerade gestellt",
     coversLoose: "Bleibt in Ruhe",
     details: "Details",
@@ -350,6 +370,9 @@ function weatherWord(entity, t) {
  * entries are greyed and italic rather than merely listed further down.
  */
 function todayCard(entity, decision, t) {
+  const causes = Object.entries(t.causes)
+    .map(([code, word]) => `'${code}': '${word}'`)
+    .join(", ");
   // One entry, whichever list it came from: the plan is made of the same
   // shape, so a change to how a movement reads lands on both at once.
   const entry =
@@ -360,7 +383,11 @@ function todayCard(entity, decision, t) {
       + `{% elif e.kind == 'paused' %} \u23f8 ${t.evPaused}`
       + `{% elif e.kind == 'resumed' %} \u25b6 ${t.evResumed}`
       + `{% elif e.kind == 'override' %} \u270b ${t.evOverride} {{ e.position }} %`
-      + "{% endif %}";
+      + "{% endif %}"
+      // Four words on why it moved. A pause, a resume and a takeover say it
+      // already, and an entry recorded before this existed carries no cause.
+      + "{% if e.cause is defined and e.cause %} \u2014 "
+      + `{{ {${causes}}.get(e.cause, e.cause) }}{% endif %}`;
   // The colour is a theme variable rather than a grey, so the dimming holds up
   // in a dark theme as well as a light one.
   const dim = (body) =>

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from .const import DEFAULTS, OVERRIDABLE, Intent, Reason
+from .const import DEFAULTS, OVERRIDABLE, Cause, Intent, Reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +97,10 @@ class Decision:
     dry_run: bool = False
     blocked_by: str | None = None
     episode_active: bool = False
+    #: Why this movement happened, in the few words a list of the day can
+    #: carry. None where nothing is moving, and where the entry says it
+    #: already: a pause and a manual takeover are their own explanation.
+    cause: Cause | None = None
     inputs: dict[str, Any] = field(default_factory=dict)
     gates: list[Gate] = field(default_factory=list)
     geometry: dict[str, Any] = field(default_factory=dict)
@@ -189,6 +193,7 @@ class Decision:
             "dry_run": self.dry_run,
             "blocked_by": self.blocked_by,
             "episode_active": self.episode_active,
+            "cause": None if self.cause is None else str(self.cause),
             "inputs": self.inputs,
             "gates": [gate.as_dict() for gate in self.gates],
             "geometry": self.geometry,
