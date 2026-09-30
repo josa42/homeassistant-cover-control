@@ -116,6 +116,28 @@ just disappears. That position is the seating point.
 
 <br><br>
 
+## When the temperature calls for it
+
+Shading needs three things to agree: the sun on the window, enough light, and a
+temperature that asks for it. The last one reads two outdoor values rather than
+one. The outdoor sensor and today's forecast high are both compared against
+**Shade above**, and either passing is enough. The forecast is what lets a cover
+shade in the morning, before the heat is in the room.
+
+The consequence is worth knowing: on a day forecast warmer than the threshold,
+the outdoor reading cannot hold shading back however cool the morning is. What
+holds it back is the indoor threshold, which has to agree before shading starts.
+A cover with no indoor sensor has nothing to disagree with it and shades on the
+forecast alone.
+
+Solar heating asks the outdoor sensor only. A forecast high is a statement about
+the afternoon and says nothing about whether the room is cold now.
+
+All three readings sit on the temperature line of the debug view, so a cover
+shading at 19 °C under a 20 °C threshold says why.
+
+<br><br>
+
 ## The debug dashboard
 
 The generated dashboard's debug view lays out the decision record per cover: the

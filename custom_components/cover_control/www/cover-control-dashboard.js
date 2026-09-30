@@ -70,6 +70,7 @@ const LABELS = {
     intoRoom: "into the room",
     readings: "Readings",
     outIn: "out/in",
+    forecastHigh: "forecast high",
     episodeLabel: "Episode",
     episodeRunning: "running",
     episodeIdle: "none",
@@ -161,6 +162,7 @@ const LABELS = {
     intoRoom: "in den Raum",
     readings: "Werte",
     outIn: "außen/innen",
+    forecastHigh: "Prognose-Höchstwert",
     episodeLabel: "Episode",
     episodeRunning: "läuft",
     episodeIdle: "keine",
@@ -563,8 +565,14 @@ function coverView(cover, t) {
         criterion(
           t.cTemp,
           a("temperature_ok"),
+          // The forecast high stands beside the two readings because the gate
+          // takes it instead of the outdoor one when it is the warmer of the
+          // two. Without it, a cool morning that shades anyway reads as the
+          // outdoor threshold being ignored.
           `${num(decision, "outdoor_temp", 1, "")} / `
-            + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`,
+            + `${num(decision, "indoor_temp", 1, " °C")} ${t.outIn}`
+            + `{% if ${a("forecast_max")} is not none %} · ${t.forecastHigh} `
+            + `${num(decision, "forecast_max", 1, " °C")}{% endif %}`,
         ),
         // Whether there is a window contact at all is settled here rather
         // than in the template, so no line is spent on a cover without one.

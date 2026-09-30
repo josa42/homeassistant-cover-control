@@ -26,6 +26,7 @@
           "dry_run": "Testlauf für alle Rollläden"
         },
         "data_description": {
+          "cool_above": "Wird mit der Außentemperatur und dem heutigen Prognose-Höchstwert verglichen, je nachdem welcher höher ist. Die Prognose lässt morgens beschatten, bevor die Wärme im Raum ist – an einem Tag mit höherer Prognose kann die Außentemperatur die Beschattung also nicht verhindern; das tut der Innen-Grenzwert.",
           "house_orientation": "Die Himmelsrichtung der Hausseite, die du Süd nennst. 180 ist ein Haus im rechten Winkel zur Himmelsrichtung; 195 eintragen, wenn diese Seite tatsächlich nach Südsüdwest zeigt. Jedes Fenster wird daraus und aus seiner Hausseite berechnet, ein schräg stehendes Haus wird also hier einmal korrigiert statt Fenster für Fenster.",
           "pv_override_threshold": "Dauerhafte PV-Leistung über diesem Wert gilt als hell, auch wenn die Wetter-Entität eine nicht erlaubte Wetterlage meldet. 0 schaltet die Übersteuerung ab.",
           "wind_source_entity": "Leer lassen, um die Windgeschwindigkeit aus der Wetter-Entität zu lesen.",
@@ -70,6 +71,7 @@
           "dry_run": "Testlauf für alle Rollläden"
         },
         "data_description": {
+          "cool_above": "Wird mit der Außentemperatur und dem heutigen Prognose-Höchstwert verglichen, je nachdem welcher höher ist. Die Prognose lässt morgens beschatten, bevor die Wärme im Raum ist – an einem Tag mit höherer Prognose kann die Außentemperatur die Beschattung also nicht verhindern; das tut der Innen-Grenzwert.",
           "house_orientation": "Die Himmelsrichtung der Hausseite, die du Süd nennst. 180 ist ein Haus im rechten Winkel zur Himmelsrichtung; 195 eintragen, wenn diese Seite tatsächlich nach Südsüdwest zeigt. Jedes Fenster wird daraus und aus seiner Hausseite berechnet, ein schräg stehendes Haus wird also hier einmal korrigiert statt Fenster für Fenster.",
           "pv_override_threshold": "Dauerhafte PV-Leistung über diesem Wert gilt als hell, auch wenn die Wetter-Entität eine nicht erlaubte Wetterlage meldet. 0 schaltet die Übersteuerung ab.",
           "wind_source_entity": "Leer lassen, um die Windgeschwindigkeit aus der Wetter-Entität zu lesen.",
@@ -267,6 +269,9 @@
           },
           "outdoor_temp": {
             "name": "Außentemperatur"
+          },
+          "forecast_max": {
+            "name": "Prognose-Höchstwert"
           },
           "indoor_temp": {
             "name": "Innentemperatur"

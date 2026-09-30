@@ -26,6 +26,7 @@
           "dry_run": "Dry run for every cover"
         },
         "data_description": {
+          "cool_above": "Compared against the outdoor reading and today's forecast high, whichever is warmer. The forecast is what lets a cover shade in the morning, before the heat is inside, so on a day forecast warmer than this the outdoor reading cannot hold shading back; the indoor threshold is what does that.",
           "house_orientation": "The compass bearing of the side of the house you call south. 180 is a house squared to the compass; enter 195 if that side really faces south-southwest. Every window is worked out from this and the side it is on, so a house turned off the grid is corrected here once rather than window by window.",
           "pv_override_threshold": "Sustained PV power above this counts as bright even when the weather entity reports a condition that is not allowed. Set 0 to switch the override off.",
           "wind_source_entity": "Leave empty to read wind speed from the weather entity.",
@@ -70,6 +71,7 @@
           "dry_run": "Dry run for every cover"
         },
         "data_description": {
+          "cool_above": "Compared against the outdoor reading and today's forecast high, whichever is warmer. The forecast is what lets a cover shade in the morning, before the heat is inside, so on a day forecast warmer than this the outdoor reading cannot hold shading back; the indoor threshold is what does that.",
           "house_orientation": "The compass bearing of the side of the house you call south. 180 is a house squared to the compass; enter 195 if that side really faces south-southwest. Every window is worked out from this and the side it is on, so a house turned off the grid is corrected here once rather than window by window.",
           "pv_override_threshold": "Sustained PV power above this counts as bright even when the weather entity reports a condition that is not allowed. Set 0 to switch the override off.",
           "wind_source_entity": "Leave empty to read wind speed from the weather entity.",
@@ -267,6 +269,9 @@
           },
           "outdoor_temp": {
             "name": "Outdoor temperature"
+          },
+          "forecast_max": {
+            "name": "Forecast high"
           },
           "indoor_temp": {
             "name": "Indoor temperature"

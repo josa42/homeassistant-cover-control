@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **The debug view shows the forecast high.** The temperature gate compares
+  `Shade above` against the outdoor sensor *and* today's forecast maximum, and
+  either one passing is enough. Only the outdoor reading was on the card, so a
+  cover shading at 19.4 °C under a 20 °C threshold looked like the setting was
+  being ignored. The decision sensor now carries `forecast_max` and the
+  temperature line reads `19.4 / 22.0 °C out/in · forecast high 27.6 °C`. The
+  rule itself is unchanged; `Shade above` also says in its help text that it is
+  compared against the forecast, and `docs/how-it-works.md` explains what that
+  means for a cool morning.
+
 ### Fixed
 
 - **The day's list empties when the day turns.** A cover whose last movement

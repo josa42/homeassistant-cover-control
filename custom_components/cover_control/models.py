@@ -143,6 +143,11 @@ class Decision:
             # it against, and it is the comparison that decides the position.
             "max_penetration_depth": self.geometry.get("max_penetration_depth"),
             "outdoor_temp": self.inputs.get("outdoor_temp"),
+            # The day's forecast high is OR-ed with the outdoor reading, so it
+            # alone can open the temperature gate. Without it here, a cool
+            # morning that shades anyway reads as the outdoor threshold being
+            # ignored.
+            "forecast_max": self.inputs.get("forecast_max"),
             "indoor_temp": self.inputs.get("indoor_temp"),
             "pv_power": self.inputs.get("pv_power"),
             "weather": self.inputs.get("weather"),
