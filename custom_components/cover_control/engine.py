@@ -189,7 +189,10 @@ def _plan_rest_of_day(
     shaded_tilt = int(config.get(CONF_SHADED_TILT))
     heating = intent is Intent.HEATING
 
-    planned: list[dict[str, Any]] = []
+    #: Kept beside its moment, because the filter at the end is a comparison
+    #: of moments. The track is local time and the clock above it is UTC, and
+    #: the two only agree as datetimes, never as the text they print to.
+    planned: list[tuple[datetime, dict[str, Any]]] = []
     false_since: datetime | None = None
     # The track opens on the present moment, which is walked like any other:
     # it moves the cover to where this very evaluation is about to send it, so
@@ -236,8 +239,8 @@ def _plan_rest_of_day(
             entry["up"] = position is not None and target > position
             entry["position"] = position = target
         if "position" in entry or "tilt" in entry:
-            planned.append(entry)
-    return [entry for entry in planned if entry["at"] > inputs.now.isoformat()]
+            planned.append((when, entry))
+    return [entry for when, entry in planned if when > inputs.now]
 
 
 def evaluate(

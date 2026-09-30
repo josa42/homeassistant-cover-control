@@ -4,6 +4,16 @@
 
 ### Fixed
 
+- **The plan no longer repeats the movement going out this minute.** The sun
+  track is worked out in local time, because the day it covers is the local
+  one, while the evaluation's clock is UTC. The two were compared as text, and
+  a local moment two hours ahead of UTC always sorts after it, so the first
+  sample, which exists only to say where the cover is being sent right now,
+  survived the filter. The list read the movement twice, once as done and once
+  as still to come. The track now carries UTC moments like everything else
+  here, and the comparison is between moments rather than between two ways of
+  writing one.
+
 - **A cover can be taken by hand before it has been commanded.** Handing
   control over was judged against the position of the last command, and a
   cover that is already where the engine wants it is never commanded at all.

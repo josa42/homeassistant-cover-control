@@ -918,3 +918,30 @@ def test_every_planned_entry_says_what_will_cause_it() -> None:
         )
     )
     assert [entry["cause"] for entry in decision.plan] == ["sun_shallower", "sun_left"]
+
+
+def test_the_plan_does_not_repeat_the_movement_going_out_now() -> None:
+    """Regression: the present was compared as text, not as a moment.
+
+    The sun track is worked out in local time because the day it covers is the
+    local one, while the evaluation's clock is UTC. Compared as strings, an
+    entry two hours ahead of UTC always sorts after it, so the first sample,
+    which exists only to say where the cover is being sent right now, survived
+    the filter and the list read the movement twice: once as done, once as
+    still to come.
+    """
+    from datetime import UTC
+    from zoneinfo import ZoneInfo
+
+    now = datetime(2026, 7, 1, 11, 0, tzinfo=UTC)
+    here = now.astimezone(ZoneInfo("Europe/Berlin"))  # 13:00, two hours ahead
+    decision, _ = run(
+        now=now,
+        sun_track=(
+            (here, 45.0, 180.0),  # the present: half the glass, sent now
+            (here + timedelta(hours=1), 70.0, 180.0),  # and later, all of it
+        ),
+    )
+
+    assert decision.target_position == 50, "the cover is being sent there now"
+    assert [entry["position"] for entry in decision.plan] == [100]

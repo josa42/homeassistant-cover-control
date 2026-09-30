@@ -442,6 +442,11 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         by every cover, because the sun is the same for all of them. The first
         entry is the present moment, which is what lets the plan start from
         where this evaluation is about to leave the cover.
+
+        The day it covers is the local one, so the end of it is worked out in
+        local time. The moments themselves are UTC, like every other time this
+        integration hands around, so that comparing one against the clock is
+        never a comparison between two ways of writing the same instant.
         """
         observer = Observer(
             self.hass.config.latitude,
@@ -454,7 +459,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         when = local
         while when < end:
             zenith, azimuth = zenith_and_azimuth(observer, when)
-            track.append((when, 90.0 - zenith, azimuth))
+            track.append((dt_util.as_utc(when), 90.0 - zenith, azimuth))
             when += TICK_INTERVAL
         return tuple(track)
 
