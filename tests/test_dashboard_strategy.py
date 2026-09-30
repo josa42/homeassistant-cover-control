@@ -214,6 +214,107 @@ def test_overview_shows_every_status_attribute(tmp_path) -> None:
     assert all(row.get("name") for row in rows), "every row needs a readable name"
 
 
+_CARD_HARNESS = r"""
+// A DOM with just enough in it to build a card and read it back out.
+const fs = require("fs");
+const vm = require("vm");
+const el = (tag) => ({
+  tag, className: "", textContent: "", children: [],
+  appendChild(c) { this.children.push(c); return c; },
+  replaceChildren(...c) { this.children = c; },
+});
+const defs = new Map();
+const registry = { get: (t) => defs.get(t), define: (t, c) => defs.set(t, c) };
+defs.set("home-assistant", class {});
+const document = { createElement: el, getElementById: () => null, head: el("head") };
+const window = { customElements: registry, document };
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), vm.createContext({
+  window, document, customElements: registry, HTMLElement: class {},
+  setTimeout: () => {}, Date, Object, JSON, Array, Math, isNaN, console,
+}));
+const card = new (defs.get("cover-control-activity"))();
+card.replaceChildren = function (...c) { this.children = c; };
+const input = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+card.setConfig({ type: "custom:cover-control-activity", today: "sensor.t", decision: "sensor.d" });
+card.hass = input;
+const root = card.children[0];
+console.log(JSON.stringify({
+  card: root.tag,
+  grid: root.children[0].className,
+  cells: root.children[0].children.map((c) => [c.className, c.textContent]),
+}));
+"""
+
+
+def render_card(tmp_path, events, plan, language="de"):
+    """Build the activity card in node and hand back its cells."""
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+
+    hass = {
+        "locale": {"language": language},
+        "states": {
+            "sensor.t": {"attributes": {"events": events}},
+            "sensor.d": {"attributes": {"plan": plan}},
+        },
+    }
+    (tmp_path / "hass.json").write_text(json.dumps(hass))
+    (tmp_path / "card.js").write_text(_CARD_HARNESS)
+    result = subprocess.run(
+        [node, str(tmp_path / "card.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    return json.loads(result.stdout)
+
+
+def test_the_activity_card_is_a_grid_of_four_columns(tmp_path) -> None:
+    """A day is read down its columns, which is why this is not markdown.
+
+    Regression: a markdown card cannot hold columns. Its HTML is sanitised
+    against a whitelist with no style attribute, so the grid arrived with its
+    columns stripped and the whole day read as one line.
+    """
+    rendered = render_card(
+        tmp_path,
+        events=[
+            {"at": "2026-09-30T08:56:22+00:00", "kind": "override", "position": 99},
+            {"at": "2026-09-30T08:56:52+00:00", "kind": "move", "cause": "sun_deeper",
+             "position": 50, "up": False, "tilt": 50},
+        ],
+        plan=[
+            {"at": "2026-09-30T13:17:00+00:00", "kind": "move",
+             "cause": "sun_shallower", "position": 100, "up": True},
+        ],
+    )
+    assert rendered["card"] == "ha-card", "it has to look like every other card"
+    cells = rendered["cells"]
+    classes = [c for c, _ in cells]
+
+    # Two movements and one plan, four cells each, with the rule between them.
+    assert len(cells) == 4 * 3 + 1
+    assert classes[8] == "cc-wide cc-now", "the rule divides done from to come"
+    assert [t for _, t in cells[8:9]] == ["jetzt"]
+    assert all("cc-later" in c for c in classes[9:]), "what is to come is dimmed"
+    assert not any("cc-later" in c for c in classes[:8]), "what happened is not"
+
+    # A row is when, which way, how far, and why, in that order.
+    assert [t for _, t in cells[4:8]] == [
+        "10:56", "↓", "50 %", "Sonne dringt tiefer ein · Lamellen 50 °",
+    ]
+    assert cells[0][1] == "10:56", "times are the reader's own, not UTC"
+    assert cells[1][1] == "✋" and cells[3][1] == "von Hand bewegt"
+
+
+def test_the_activity_card_says_when_nothing_has_happened(tmp_path) -> None:
+    rendered = render_card(tmp_path, events=[], plan=[])
+    assert rendered["cells"] == [["cc-wide cc-later", "Heute nichts gestellt."]]
+
+
 def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
     """Tiles truncate, so "Arbeitszimmer Raffstore Fortsetzen" showed as
     "Arbeitszimmer Raff..." under a heading that already names the cover."""
@@ -415,6 +516,12 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
     ]
     shown = {row["attribute"] for row in rows}
     templates = "\n".join(card.get("content", "") for card in cards)
+    # The activity card reads its lists in code rather than in a template, so
+    # what it shows is looked for in the element it is rendered by.
+    source = ASSET.read_text(encoding="utf-8")
+    if any(card.get("type", "").startswith("custom:") for card in cards):
+        templates += "\n" + source[source.index("class CoverControlActivityCard") :]
+    shown |= {name for name in expected if f'"{name}"' in templates}
     shown |= {name for name in expected if f"'{name}'" in templates}
 
     assert expected - shown == set(), "decision attributes missing from the debug view"

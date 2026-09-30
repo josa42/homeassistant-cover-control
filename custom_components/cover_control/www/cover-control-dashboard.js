@@ -37,6 +37,7 @@ const LABELS = {
     evResumed: "resumed",
     evOverride: "moved by hand",
     now: "now",
+    evSlats: "slats",
     causes: {
       sun_on_glass: "sun is on the glass",
       sun_deeper: "sun reaching deeper",
@@ -124,6 +125,7 @@ const LABELS = {
     evResumed: "fortgesetzt",
     evOverride: "von Hand bewegt",
     now: "jetzt",
+    evSlats: "Lamellen",
     causes: {
       sun_on_glass: "Sonne auf dem Glas",
       sun_deeper: "Sonne dringt tiefer ein",
@@ -358,63 +360,176 @@ function weatherWord(entity, t) {
 /**
  * What happened to this cover today, in order, and what is still to come.
  *
- * Read from an entity of its own rather than from the logbook: the logbook
- * shows every change to the cover including ones nothing here made, rolls over
- * the last 24 hours rather than the day, and phrases it its own way. The plan
- * comes from the decision sensor, which carries it because it is written on
- * every evaluation anyway.
+ * A card of its own rather than a markdown one. The day is read down its
+ * columns, and a markdown card cannot hold columns: its HTML is sanitised
+ * against a whitelist with no `style` attribute, so a grid arrives with its
+ * columns stripped, a table is drawn with a border on every cell that no card
+ * can turn off, and a fenced block costs a monospace font. This module is
+ * already loaded on every dashboard to register the strategy, so an element
+ * beside it is free, and an element may style itself.
  *
- * Laid out in a fenced block, which is the only grid a markdown card can hold.
- * Its HTML is sanitised with a whitelist that has no `style` attribute, so a
- * CSS grid arrives with its columns stripped and reads as one long line, and a
- * table is drawn with a 1px border on every cell that no card can turn off. A
- * fenced block is monospace, keeps its spaces, and is given padding and
- * nothing else: no rules, no background, no border. Columns are therefore
- * padded here, in the template, and every character in the first three of them
- * is a narrow one so that the padding means what it says.
- *
- * A rule saying "now" divides what happened from what is still to come, since
- * dimming the second half is not available either.
+ * The lists come from two entities: what happened from the cover's own Today
+ * sensor, and what is still to come from the decision sensor, which carries
+ * the plan because it is written on every evaluation anyway.
  */
-function todayCard(entity, decision, t) {
-  const causes = Object.entries(t.causes)
-    .map(([code, word]) => `'${code}': '${word}'`)
-    .join(", ");
+const ACTIVITY_CARD = "cover-control-activity";
+const ACTIVITY_STYLE_ID = "cover-control-activity-css";
+const ACTIVITY_CSS = `
+.cc-activity {
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+/* Proportional digits are different widths, so a column of times or
+   percentages would not line up without this. */
+.cc-activity .cc-time,
+.cc-activity .cc-percent { font-variant-numeric: tabular-nums; }
+.cc-activity .cc-percent { text-align: right; }
+.cc-activity .cc-mark { text-align: center; }
+.cc-activity .cc-later { color: var(--secondary-text-color); }
+.cc-activity .cc-wide { grid-column: 1 / -1; }
+/* The rule is drawn by the row itself, so the word sits in the middle of a
+   line that stretches to whatever width the card has. */
+.cc-activity .cc-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: var(--secondary-text-color);
+}
+.cc-activity .cc-now::before,
+.cc-activity .cc-now::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--divider-color);
+}
+`;
 
-  // One row, whichever list it came from: the plan is made of the same shape,
-  // so a change to how a movement reads lands on both at once. Every statement
-  // sits on the line it belongs to, because a stray newline inside a fenced
-  // block is a blank row in the middle of the day.
-  const row =
-    `{% set mark = ('↑' if e.up else '↓') if e.kind == 'move' else ' ' %}`
-      // "is defined" as well as "is not none": a movement that only set the
-      // slats carries no position at all, and would print a lone percent sign.
-      + "{% set pct = (e.position ~ ' %')"
-      + " if e.position is defined and e.position is not none else '' %}"
-      + `{% set why = ('✋ ' ~ (causes.get(e.cause) or '${t.evOverride}'))`
-      + ` if e.kind == 'override' else ('⏸ ${t.evPaused}') if e.kind == 'paused'`
-      + ` else ('▶ ${t.evResumed}') if e.kind == 'resumed'`
-      + " else causes.get(e.cause, '') %}"
-      // The slat angle rides along without its name: the column it would need
-      // costs more width than the word is worth on a phone.
-      + `{% if e.tilt is defined %}{% set why = why ~ ' ·' ~ e.tilt ~ '°' %}{% endif %}`
-      + "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }} {{ mark }}"
-      + ' {{ "%5s" | format(pct) }} {{ why }}\n';
+/** One entry as its four columns: when, which way, how far, and why. */
+function activityRow(entry, t, lang) {
+  const at = new Date(entry.at);
+  const mark =
+    entry.kind === "move"
+      ? entry.up
+        ? "↑"
+        : "↓"
+      : entry.kind === "override"
+        ? "✋"
+        : entry.kind === "paused"
+          ? "⏸"
+          : entry.kind === "resumed"
+            ? "▶"
+            : "";
+  const kindWords = {
+    override: t.evOverride,
+    paused: t.evPaused,
+    resumed: t.evResumed,
+  };
+  let why = t.causes[entry.cause] || entry.cause || kindWords[entry.kind] || "";
+  if (entry.tilt !== undefined && entry.tilt !== null) {
+    why += `${why ? " · " : ""}${t.evSlats} ${entry.tilt} °`;
+  }
+  return [
+    isNaN(at) ? "" : at.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }),
+    mark,
+    entry.position === undefined || entry.position === null ? "" : `${entry.position} %`,
+    why,
+  ];
+}
 
-  const rule = "─".repeat(9);
-  const content =
-    `{% set events = state_attr('${entity}', 'events') or [] %}`
-      + `{% set plan = state_attr('${decision}', 'plan') or [] %}`
-      + `{% set causes = {${causes}} %}`
-      + "{% if events | count == 0 and plan | count == 0 %}"
-      + t.noActions
-      + "{% else %}```text\n"
-      + "{% for e in events %}" + row + "{% endfor %}"
-      + `${rule} ${t.now} ${rule}\n`
-      + "{% for e in plan %}" + row + "{% endfor %}"
-      + "```{% endif %}";
+class CoverControlActivityCard extends HTMLElement {
+  setConfig(config) {
+    if (!config || !config.decision) {
+      throw new Error("cover-control-activity needs a decision entity");
+    }
+    this._config = config;
+    this._signature = null;
+  }
 
-  return { type: "markdown", content };
+  set hass(hass) {
+    this._hass = hass;
+    this.render();
+  }
+
+  getCardSize() {
+    return 2 + Math.ceil(this._rows / 3);
+  }
+
+  attributeOf(entityId, name) {
+    const state = entityId && this._hass.states[entityId];
+    const value = state && state.attributes[name];
+    return Array.isArray(value) ? value : [];
+  }
+
+  render() {
+    if (!this._hass || !this._config) return;
+    const events = this.attributeOf(this._config.today, "events");
+    const plan = this.attributeOf(this._config.decision, "plan");
+    // hass is handed over on every state change in the house, and this card
+    // reads two attributes of it. Rebuilding the rows each time would be a
+    // few thousand pointless DOM writes a day.
+    const signature = JSON.stringify([events, plan, this._hass.locale]);
+    if (signature === this._signature) return;
+    this._signature = signature;
+    this._rows = events.length + plan.length;
+
+    const t = labels(this._hass);
+    const lang = (this._hass.locale && this._hass.locale.language) || "en";
+    const grid = document.createElement("div");
+    grid.className = "cc-activity";
+
+    const add = (text, className) => {
+      const cell = document.createElement("span");
+      cell.className = className;
+      cell.textContent = text;
+      grid.appendChild(cell);
+      return cell;
+    };
+    const addRow = (entry, later) => {
+      const [time, mark, percent, why] = activityRow(entry, t, lang);
+      const dim = later ? " cc-later" : "";
+      add(time, `cc-time${dim}`);
+      add(mark, `cc-mark${dim}`);
+      add(percent, `cc-percent${dim}`);
+      add(why, `cc-why${dim}`);
+    };
+
+    if (!events.length && !plan.length) {
+      add(t.noActions, "cc-wide cc-later");
+    } else {
+      events.forEach((entry) => addRow(entry, false));
+      add(t.now, "cc-wide cc-now");
+      plan.forEach((entry) => addRow(entry, true));
+    }
+
+    const card = document.createElement("ha-card");
+    card.appendChild(grid);
+    this.replaceChildren(card);
+  }
+}
+
+/**
+ * The card's stylesheet, added once for the page rather than once per card.
+ *
+ * In the light DOM, so that <ha-card> and the theme's own variables resolve
+ * exactly as they do for every other card. Every rule is under .cc-activity
+ * for that same reason: nothing here may leak onto the rest of the dashboard.
+ */
+function installActivityStyle() {
+  if (typeof document === "undefined" || document.getElementById(ACTIVITY_STYLE_ID)) {
+    return;
+  }
+  const style = document.createElement("style");
+  style.id = ACTIVITY_STYLE_ID;
+  style.textContent = ACTIVITY_CSS;
+  document.head.appendChild(style);
+}
+
+function todayCard(entity, decision) {
+  return { type: `custom:${ACTIVITY_CARD}`, today: entity, decision };
 }
 
 function viewPath(name, taken) {
@@ -664,7 +779,7 @@ function coverView(cover, t) {
           : []),
       ].join("\n"),
     },
-    ...(cover.todayEntity ? [todayCard(cover.todayEntity, decision, t)] : []),
+    ...(cover.todayEntity ? [todayCard(cover.todayEntity, decision)] : []),
     {
       type: "history-graph",
       hours_to_show: 24,
@@ -742,15 +857,17 @@ class CoverControlViewStrategy extends HTMLElement {
   }
 }
 
-const STRATEGIES = {
+const ELEMENTS = {
   "ll-strategy-dashboard-cover-control": CoverControlDashboardStrategy,
   "ll-strategy-view-cover-control": CoverControlViewStrategy,
+  [ACTIVITY_CARD]: CoverControlActivityCard,
 };
 
 function register(registry) {
-  for (const [tag, element] of Object.entries(STRATEGIES)) {
+  for (const [tag, element] of Object.entries(ELEMENTS)) {
     if (!registry.get(tag)) registry.define(tag, element);
   }
+  installActivityStyle();
 }
 
 // This module is loaded with add_extra_js_url, in parallel with the frontend's

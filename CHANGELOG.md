@@ -17,17 +17,19 @@
 
 - **The day's list is a grid, and has lost its headline.** Four columns, read
   down rather than across: the time, which way it went, the percentage aligned
-  right so 5 % and 100 % end in the same place, and why. The card had `Heute
-  gestellt` written across the top, which said nothing the list below it did
-  not, and a rule saying `jetzt` divides what happened from what is still to
-  come.
+  right so 5 % and 100 % end in the same place, and why. A rule saying `jetzt`
+  divides what happened from what is still to come, and what is still to come
+  is dimmed. The card had `Heute gestellt` written across the top, which said
+  nothing the list below it did not.
 
-  It is a fenced block, which is the only grid a markdown card can hold. The
-  card's HTML is sanitised against a whitelist with no `style` attribute, so a
-  CSS grid arrives with its columns stripped and reads as one long line, and a
-  markdown table is drawn with a 1px border on every cell that no card can turn
-  off. A fenced block keeps its spaces and is given padding and nothing else:
-  no rules, no background, no border.
+  It is a card of its own now rather than a markdown one, because a markdown
+  card cannot hold columns: its HTML is sanitised against a whitelist with no
+  `style` attribute, so a grid arrives with its columns stripped, a table is
+  drawn with a border on every cell that no card can turn off, and a fenced
+  block costs a monospace font. The module that registers the dashboard
+  strategy is already loaded on every dashboard, so a card beside it is free,
+  and a card may style itself. Digits are set with `tabular-nums`, so a column
+  of times lines up without anything being padded.
 
 ### Fixed
 
