@@ -119,6 +119,25 @@ class CoverRuntime:
         #: Called whenever the day's list changes, so it can be written to
         #: disk. The runtime knows nothing about where that is.
         self.on_events_changed: Callable[[], None] | None = None
+        #: Where the cover was before the run it is reporting now, and when it
+        #: last reported anything at all. A cover driven by hand reports its
+        #: way through the run a percent or two at a time, so whether it has
+        #: moved can only be asked of where the run started. Asked of the
+        #: report before this one, the answer is always no.
+        self.resting_position: int | None = None
+        self.last_report_at: datetime | None = None
+
+    def note_report(self, was: int | None, now: datetime) -> int | None:
+        """Take in a position report and answer what it should be judged against.
+
+        The reference only moves on once the cover has been still long enough
+        for a run to be over. Everything inside a run is judged against the
+        position that run started from.
+        """
+        if self.last_report_at is None or now - self.last_report_at >= SETTLE_TIME:
+            self.resting_position = was
+        self.last_report_at = now
+        return self.resting_position
 
     def restore_events(self, events: list[Any], now: datetime) -> None:
         """Take back a list written before a restart.
@@ -415,31 +434,34 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
 
         Until something has actually been commanded there is no such position
         to judge against, which is every cover's state after a restart and the
-        whole life of one that was already where it needed to be. The movement
-        itself is the signal then: the cover left a position nothing here asked
-        it to leave.
+        whole life of one that was already where it needed to be. Where the
+        cover was resting before this run began stands in for it then: leaving
+        a position nothing here asked it to leave is the same signal.
         """
-        if runtime.is_ours(event.context):
-            return None
         new_state, old_state = event.data.get("new_state"), event.data.get("old_state")
         if new_state is None:
             return None
         position = new_state.attributes.get("current_position")
         if position is None:
             return None
+        # Every report, ours or not, so that what counts as resting is judged
+        # on how long the cover has been quiet rather than on who moved it.
+        resting = runtime.note_report(
+            None if old_state is None else old_state.attributes.get("current_position"),
+            dt_util.utcnow(),
+        )
+        if runtime.is_ours(event.context):
+            return None
         last = runtime.last_command
         if last is not None and dt_util.utcnow() - last < SETTLE_TIME:
             return None
         reference = runtime.expected_position
         if reference is None:
-            # No command behind us, so the cover's own last reading is the
-            # reference. None of it on the very first report after a restart,
-            # where there is nothing to have moved away from yet.
-            reference = (
-                None if old_state is None else old_state.attributes.get("current_position")
-            )
-            if reference is None:
-                return None
+            reference = resting
+        if reference is None:
+            # The very first report after a restart: nothing to have moved
+            # away from yet.
+            return None
         if abs(position - reference) <= MIN_MOVEMENT_DELTA:
             return None
         return position

@@ -776,3 +776,31 @@ async def test_a_movement_is_written_to_disk(
     await hass.async_block_till_done()
 
     assert [e["position"] for e in stored(hass_storage)[subentry_id]] == [50]
+
+
+async def test_a_cover_that_reports_its_way_through_a_manual_run(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """Regression: a Shelly reports every percent of a run it makes.
+
+    Judged against the report before it, a movement by hand never happens: the
+    cover climbs 24, 26, 28, 30 and no two readings are five apart. It has to
+    be judged against where the run started.
+    """
+    # Already where the engine wants it, so nothing is ever commanded and
+    # there is no target to judge the reports against. This is every cover
+    # after a restart, and the one this was found on.
+    set_scene(position=50, tilt=45)
+    await setup_entry(entry)
+    assert runtime(entry).expected_position is None, "nothing was commanded"
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+
+    for position in range(50, 72, 2):
+        await report(hass, "opening", position, 100, Context())
+        freezer.tick(timedelta(seconds=1))
+
+    assert runtime(entry).state.override, "someone drove it up by hand"
+    last = runtime(entry).events[-1]
+    assert last["kind"] == "override"
+    assert last["position"] == 70, "the entry carries where the run ended"
+    assert last["cause"] == "handed_over"

@@ -41,6 +41,15 @@
   here, and the comparison is between moments rather than between two ways of
   writing one.
 
+- **A cover driven by hand is noticed while it is being driven.** A cover
+  reports its way through a run a percent or two at a time, and whether it had
+  moved was asked of the report before this one, which no two readings of a
+  run ever answer yes to. A blind pulled from 24 % to 45 % by hand was
+  therefore never seen at all, and the engine drove it back down seventeen
+  seconds later. The question is now asked of the position the run started
+  from, which the cover only leaves once it has been still long enough for a
+  run to be over.
+
 - **A cover can be taken by hand before it has been commanded.** Handing
   control over was judged against the position of the last command, and a
   cover that is already where the engine wants it is never commanded at all.
