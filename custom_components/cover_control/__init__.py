@@ -78,6 +78,9 @@ async def async_setup_entry(
     coordinator = CoverControlCoordinator(hass, entry)
     coordinator.hub_device_id = hub_device.id
     coordinator.load_subentries()
+    # Before the first evaluation: that one can already record a movement, and
+    # what this session does belongs after what the last one left behind.
+    await coordinator.async_restore_events()
     await coordinator.async_config_entry_first_refresh()
     coordinator.async_setup_listeners()
     entry.async_on_unload(coordinator.async_stop_listeners)
@@ -100,4 +103,7 @@ async def async_unload_entry(
     # A reload puts it straight back on the next refresh. Removing the
     # integration for good must not leave the issue behind, though.
     ir.async_delete_issue(hass, DOMAIN, ISSUE_UNCONTROLLED_COVERS)
+    # A delayed write would be dropped with the coordinator, and a reload is
+    # the one restart that does not go through Home Assistant stopping.
+    await entry.runtime_data.async_save_events_now()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

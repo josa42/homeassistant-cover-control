@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Any
@@ -24,6 +25,7 @@ from homeassistant.const import (
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -40,10 +42,13 @@ from .const import (
     DECISION_HISTORY,
     DOMAIN,
     EVENT_DECISION,
+    EVENTS_SAVE_DELAY,
     MANUAL_GROUP,
     MIN_MOVEMENT_DELTA,
     PAUSE_FALLBACK,
     SETTLE_TIME,
+    STORAGE_KEY,
+    STORAGE_VERSION,
     SUBENTRY_TYPE_COVER,
     TICK_INTERVAL,
     Cause,
@@ -111,6 +116,31 @@ class CoverRuntime:
         #: When the cover was last moved by someone other than us, which is
         #: what the grouping of those movements is measured from.
         self.last_manual_at: datetime | None = None
+        #: Called whenever the day's list changes, so it can be written to
+        #: disk. The runtime knows nothing about where that is.
+        self.on_events_changed: Callable[[], None] | None = None
+
+    def restore_events(self, events: list[Any], now: datetime) -> None:
+        """Take back a list written before a restart.
+
+        Only today's survives, judged here rather than trusted from the file,
+        because a Home Assistant that was off overnight comes back to a file
+        full of yesterday. Entries that cannot be read at all are dropped: a
+        day's list is worth having, never worth failing a setup for.
+        """
+        self.events = [
+            event
+            for event in events
+            if isinstance(event, dict)
+            and dt_util.parse_datetime(str(event.get("at"))) is not None
+        ]
+        self.events = self.events_on(now)
+        manual = [event for event in self.events if event["kind"] == "override"]
+        # So a restart in the middle of someone adjusting a cover does not
+        # split that one go at it into two entries.
+        self.last_manual_at = (
+            dt_util.parse_datetime(manual[-1]["at"]) if manual else None
+        )
 
     def events_on(self, now: datetime) -> list[dict[str, Any]]:
         """The list as it stands on the day `now` falls in.
@@ -147,8 +177,10 @@ class CoverRuntime:
                         if value is not None and key != "cause"
                     }
                 )
+                self._events_changed()
                 return
         self.events.append({"at": now.isoformat(), "kind": kind, **detail})
+        self._events_changed()
 
     def record_manual(self, position: int, now: datetime, handed_over: bool) -> None:
         """Note a movement nothing here made.
@@ -173,6 +205,7 @@ class CoverRuntime:
             self.events[-1]["position"] = position
             if handed_over:
                 self.events[-1]["cause"] = str(Cause.HANDED_OVER)
+            self._events_changed()
             return
         self.record_event(
             "override",
@@ -180,6 +213,10 @@ class CoverRuntime:
             position=position,
             cause=str(Cause.HANDED_OVER) if handed_over else None,
         )
+
+    def _events_changed(self) -> None:
+        if self.on_events_changed is not None:
+            self.on_events_changed()
 
     @property
     def is_paused(self) -> bool:
@@ -245,6 +282,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         self.runtimes: dict[str, CoverRuntime] = {}
         self._unsub_tracker = None
         self._forecast_cache: dict[str, tuple[datetime, float | None]] = {}
+        self._events_store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
 
     @property
     def hub_config(self) -> dict[str, Any]:
@@ -262,9 +300,57 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             if subentry.subentry_id in self.runtimes:
                 self.runtimes[subentry.subentry_id].config = dict(subentry.data)
             else:
-                self.runtimes[subentry.subentry_id] = CoverRuntime(subentry)
+                runtime = CoverRuntime(subentry)
+                runtime.on_events_changed = self._save_events
+                self.runtimes[subentry.subentry_id] = runtime
         for stale in set(self.runtimes) - seen:
             del self.runtimes[stale]
+
+    async def async_restore_events(self) -> None:
+        """Put back what every cover did earlier today.
+
+        Read before the first evaluation, so that whatever this session records
+        lands after what the last one left behind rather than being replaced by
+        it. A file that cannot be read costs the day's list and nothing else.
+        """
+        try:
+            stored = await self._events_store.async_load() or {}
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Could not read the day's lists back: %s", err)
+            return
+        now = dt_util.utcnow()
+        for subentry_id, events in (stored.get("covers") or {}).items():
+            runtime = self.runtimes.get(subentry_id)
+            if runtime is not None and isinstance(events, list):
+                runtime.restore_events(events, now)
+
+    @callback
+    def _save_events(self) -> None:
+        """Write the day's lists out, a little after they stop changing.
+
+        Delayed because a cover being driven by hand changes its list every
+        second it travels, and each of those is the same file.
+        """
+        self._events_store.async_delay_save(self._stored_events, EVENTS_SAVE_DELAY)
+
+    @callback
+    def _stored_events(self) -> dict[str, Any]:
+        """Every cover's day, keyed by the subentry it belongs to.
+
+        Built from the runtimes that exist now, so a cover that has been
+        removed takes its list with it.
+        """
+        return {
+            "covers": {
+                subentry_id: runtime.events
+                for subentry_id, runtime in self.runtimes.items()
+                if runtime.events
+            }
+        }
+
+    async def async_save_events_now(self) -> None:
+        """Write the day's lists out at once, for an unload that cannot wait."""
+        await self._events_store.async_save(self._stored_events())
 
     @callback
     def async_setup_listeners(self) -> None:

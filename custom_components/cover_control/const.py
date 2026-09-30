@@ -46,6 +46,13 @@ MANUAL_GROUP = timedelta(minutes=5)
 #: How long a context id we created stays recognisable as ours.
 CONTEXT_TTL = timedelta(minutes=5)
 
+#: Where the day's list is kept so a restart does not empty it, and how long a
+#: change to it waits before being written. The list lives in memory and is
+#: rebuilt by nothing: without this, restarting at noon loses the morning.
+STORAGE_KEY = f"{DOMAIN}.events"
+STORAGE_VERSION = 1
+EVENTS_SAVE_DELAY = 10
+
 #: Number of decisions kept per cover for the diagnostics download.
 DECISION_HISTORY = 50
 

@@ -158,6 +158,12 @@ and the temperature stay as they are. A cover that is paused, moved by hand or
 shut out by the weather plans nothing, because on today's conditions it is not
 going to do anything.
 
+The list survives a restart. It lives in memory, and is written to
+`.storage/cover_control.events` a few seconds after it changes, so restarting
+at noon does not lose the morning. Only the current day is read back, whatever
+the file holds, because a Home Assistant that was off overnight comes back to a
+file full of yesterday.
+
 Movements nothing here made are listed too, whether or not an episode was
 running: a cover pulled down by hand in the evening is exactly the kind of
 thing the list is read for. A cover being driven by hand reports a position

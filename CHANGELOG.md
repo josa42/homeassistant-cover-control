@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **The day's list survives a restart.** It lives in memory, so restarting at
+  noon lost the morning, which is the moment a reader most wants to know what
+  happened. It is written to `.storage/cover_control.events` a few seconds
+  after it changes, and read back before the first evaluation so that whatever
+  the new session records lands after it. Only the current day is taken back,
+  whatever the file holds: Home Assistant off overnight comes back to a file
+  full of yesterday. A file that cannot be read costs the day's list and
+  nothing else.
+
 ### Fixed
 
 - **The plan no longer repeats the movement going out this minute.** The sun

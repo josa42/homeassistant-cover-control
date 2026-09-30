@@ -6,12 +6,14 @@ from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.cover_control.const import (
     GATE_DEBOUNCE,
     MANUAL_GROUP,
     SETTLE_TIME,
+    STORAGE_KEY,
 )
 
 from .conftest import COVER
@@ -701,3 +703,76 @@ async def test_a_cover_can_be_grabbed_before_we_have_commanded_anything(
 
     assert runtime(entry).state.override, "the cover was moved by hand"
     assert runtime(entry).events[-1]["cause"] == "handed_over"
+
+
+def stored(hass_storage) -> dict:
+    """The day's lists as they stand on disk, by cover."""
+    written = hass_storage.get(STORAGE_KEY)
+    return {} if written is None else written["data"]["covers"]
+
+
+async def test_the_days_list_survives_a_restart(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, hass_storage
+) -> None:
+    """Restarting at noon must not lose the morning."""
+    morning = dt_util.utcnow() - timedelta(hours=2)
+    hass_storage[STORAGE_KEY] = {
+        "version": 1,
+        "data": {
+            "covers": {
+                next(iter(entry.subentries)): [
+                    {
+                        "at": morning.isoformat(),
+                        "kind": "move",
+                        "position": 25,
+                        "up": False,
+                        "cause": "sun_on_glass",
+                    }
+                ]
+            }
+        },
+    }
+    set_scene(tilt=45)
+    await setup_entry(entry)
+
+    events = runtime(entry).events
+    assert events[0]["position"] == 25, "the morning is back"
+    assert events[0]["cause"] == "sun_on_glass"
+    assert len(events) == 2, "and this session's first command sits after it"
+
+
+async def test_yesterdays_list_is_not_restored(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, hass_storage
+) -> None:
+    """Home Assistant off overnight comes back to a file full of yesterday."""
+    hass_storage[STORAGE_KEY] = {
+        "version": 1,
+        "data": {
+            "covers": {
+                next(iter(entry.subentries)): [
+                    {"at": (dt_util.utcnow() - timedelta(days=1)).isoformat(),
+                     "kind": "move", "position": 0, "up": False},
+                    {"at": "not a time at all", "kind": "move", "position": 50},
+                ]
+            }
+        },
+    }
+    set_scene(sun_elevation=-10.0)  # night, so nothing is recorded on top
+    await setup_entry(entry)
+
+    assert runtime(entry).events == []
+
+
+async def test_a_movement_is_written_to_disk(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, hass_storage
+) -> None:
+    """An unload flushes what a delayed write would otherwise still be holding."""
+    set_scene(tilt=45)
+    await setup_entry(entry)
+    assert runtime(entry).events, "the shading command happened"
+
+    subentry_id = next(iter(entry.runtime_data.runtimes))
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert [e["position"] for e in stored(hass_storage)[subentry_id]] == [50]
