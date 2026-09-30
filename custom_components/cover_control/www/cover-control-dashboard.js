@@ -373,7 +373,10 @@ function weatherWord(entity, t) {
  * the plan because it is written on every evaluation anyway.
  */
 const ACTIVITY_CARD = "cover-control-activity";
-const ACTIVITY_STYLE_ID = "cover-control-activity-css";
+// In the card's own shadow root, because a card is rendered inside one and a
+// stylesheet in the document does not cross that boundary: the rules simply
+// never arrive, and the day reads as one long line. Theme variables do cross
+// it, so the colours are still the reader's own.
 const ACTIVITY_CSS = `
 .cc-activity {
   padding: 12px 16px;
@@ -507,25 +510,11 @@ class CoverControlActivityCard extends HTMLElement {
 
     const card = document.createElement("ha-card");
     card.appendChild(grid);
-    this.replaceChildren(card);
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = ACTIVITY_CSS;
+    this.shadowRoot.replaceChildren(style, card);
   }
-}
-
-/**
- * The card's stylesheet, added once for the page rather than once per card.
- *
- * In the light DOM, so that <ha-card> and the theme's own variables resolve
- * exactly as they do for every other card. Every rule is under .cc-activity
- * for that same reason: nothing here may leak onto the rest of the dashboard.
- */
-function installActivityStyle() {
-  if (typeof document === "undefined" || document.getElementById(ACTIVITY_STYLE_ID)) {
-    return;
-  }
-  const style = document.createElement("style");
-  style.id = ACTIVITY_STYLE_ID;
-  style.textContent = ACTIVITY_CSS;
-  document.head.appendChild(style);
 }
 
 function todayCard(entity, decision) {
@@ -867,7 +856,6 @@ function register(registry) {
   for (const [tag, element] of Object.entries(ELEMENTS)) {
     if (!registry.get(tag)) registry.define(tag, element);
   }
-  installActivityStyle();
 }
 
 // This module is loaded with add_extra_js_url, in parallel with the frontend's

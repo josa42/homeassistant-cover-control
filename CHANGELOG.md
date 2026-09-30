@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The activity card's stylesheet reaches it.** It was added to the document,
+  and a card is rendered inside a shadow root, which a document stylesheet
+  never crosses: the rules arrived nowhere and the day read as one long line,
+  exactly as it had in markdown. It lives in the card's own shadow root now.
+  Theme variables do cross that boundary, so the colours are still the
+  reader's own.
+
 ## 1.13.1 - 2026-09-30
 
 ### Changed

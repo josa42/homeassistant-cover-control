@@ -233,13 +233,19 @@ vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), vm.createContext({
   setTimeout: () => {}, Date, Object, JSON, Array, Math, isNaN, console,
 }));
 const card = new (defs.get("cover-control-activity"))();
-card.replaceChildren = function (...c) { this.children = c; };
+// A card is rendered inside a shadow root, so its stylesheet has to be in one
+// too: a document stylesheet never reaches it.
+card.attachShadow = function () {
+  this.shadowRoot = el("shadow-root");
+  return this.shadowRoot;
+};
 const input = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 card.setConfig({ type: "custom:cover-control-activity", today: "sensor.t", decision: "sensor.d" });
 card.hass = input;
-const root = card.children[0];
+const [style, root] = card.shadowRoot.children;
 console.log(JSON.stringify({
   card: root.tag,
+  styled: style.tag === "style" && style.textContent.includes("display: grid"),
   grid: root.children[0].className,
   cells: root.children[0].children.map((c) => [c.className, c.textContent]),
 }));
@@ -292,6 +298,10 @@ def test_the_activity_card_is_a_grid_of_four_columns(tmp_path) -> None:
         ],
     )
     assert rendered["card"] == "ha-card", "it has to look like every other card"
+    assert rendered["styled"], (
+        "the stylesheet belongs in the shadow root the card is rendered in, "
+        "because a document stylesheet never reaches inside one"
+    )
     cells = rendered["cells"]
     classes = [c for c, _ in cells]
 
