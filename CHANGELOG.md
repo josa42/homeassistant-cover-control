@@ -29,6 +29,16 @@
   anyway, and is marked unrecorded: a list that shifts every five minutes has
   no business in the database.
 
+- **Movements by hand are in the day's list**, not only the one that takes a
+  cover off the engine. A cover pulled down by hand at nine in the evening is
+  what the list is read for, and nothing was recording it because no episode
+  was running. Anything moved by hand less than five minutes from the last
+  movement joins that entry rather than starting a new one: a wall switch
+  reports a position every step of the way, and people have two or three goes
+  at a blind. The entry keeps the time it started, carries where the cover
+  ended up, and says `Steuerung abgegeben` when it is the movement that took
+  the cover off the engine.
+
 - **Every movement says what caused it**, in four words, past and planned
   alike:
 

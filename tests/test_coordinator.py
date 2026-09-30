@@ -8,7 +8,11 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import Context, HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.cover_control.const import GATE_DEBOUNCE, SETTLE_TIME
+from custom_components.cover_control.const import (
+    GATE_DEBOUNCE,
+    MANUAL_GROUP,
+    SETTLE_TIME,
+)
 
 from .conftest import COVER
 
@@ -620,3 +624,58 @@ async def test_a_recorded_movement_says_what_caused_it(
     events = runtime(entry).events
     assert len(events) == 1
     assert events[0]["cause"] == "sun_on_glass", "the sun arriving started this"
+
+
+async def test_a_movement_by_hand_is_listed_without_an_episode(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """The evening the blinds are pulled by hand is what the list is read for."""
+    set_scene(sun_elevation=-10.0)  # night: nothing here is driving anything
+    await setup_entry(entry)
+    assert not runtime(entry).state.active
+
+    await human_moves(hass, 40)
+
+    last = runtime(entry).events[-1]
+    assert last["kind"] == "override"
+    assert last["position"] == 40
+    assert "cause" not in last or last["cause"] is None, (
+        "nothing was handed over, because nothing was holding the cover"
+    )
+
+
+async def test_movements_by_hand_close_together_are_one_entry(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """A wall switch reports every step, and people have several goes."""
+    set_scene(sun_elevation=-10.0)
+    await setup_entry(entry)
+
+    await human_moves(hass, 80)
+    freezer.tick(timedelta(minutes=2))
+    await human_moves(hass, 60)
+    freezer.tick(timedelta(minutes=2))
+    await human_moves(hass, 30)
+
+    events = runtime(entry).events
+    assert len(events) == 1, f"one go at the cover, {len(events)} entries"
+    assert events[0]["position"] == 30, "the entry carries where it ended up"
+
+    # Five minutes of quiet, and the next movement is its own entry.
+    freezer.tick(MANUAL_GROUP + timedelta(seconds=10))
+    await human_moves(hass, 100)
+    assert [e["position"] for e in runtime(entry).events] == [30, 100]
+
+
+async def test_a_takeover_says_control_was_handed_over(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """The same entry, with the consequence the reader needs on it."""
+    set_scene(tilt=45)
+    await setup_entry(entry)
+
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    await human_moves(hass, 100)
+
+    assert runtime(entry).events[-1]["cause"] == "handed_over"
+    assert runtime(entry).state.override

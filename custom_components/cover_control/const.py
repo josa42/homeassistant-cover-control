@@ -37,6 +37,12 @@ MIN_MOVEMENT_DELTA = 5
 #: never reaches its target can be re-commanded.
 SETTLE_TIME = timedelta(seconds=90)
 
+#: Movements by hand closer together than this read as one go at the cover.
+#: Someone at the wall switch reports a position every step of the way, and a
+#: person adjusting a blind does it two or three times over; the day's list
+#: wants one entry for that, not a dozen.
+MANUAL_GROUP = timedelta(minutes=5)
+
 #: How long a context id we created stays recognisable as ours.
 CONTEXT_TTL = timedelta(minutes=5)
 
@@ -120,6 +126,9 @@ class Cause(StrEnum):
     TEMP_NEUTRAL = "temp_neutral"
     SUN_WARMS = "sun_warms"
     STORM = "storm"
+    #: A movement by hand that took the cover off the engine for the rest
+    #: of the episode, as opposed to one while nothing was running.
+    HANDED_OVER = "handed_over"
 
 
 class Reason(StrEnum):

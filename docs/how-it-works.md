@@ -158,6 +158,14 @@ and the temperature stay as they are. A cover that is paused, moved by hand or
 shut out by the weather plans nothing, because on today's conditions it is not
 going to do anything.
 
+Movements nothing here made are listed too, whether or not an episode was
+running: a cover pulled down by hand in the evening is exactly the kind of
+thing the list is read for. A cover being driven by hand reports a position
+every step of the way and people have two or three goes at it, so movements
+less than five minutes apart are one entry, keeping the time it started and
+carrying where the cover ended up. The one that takes a cover off the engine
+for the rest of an episode says so.
+
 Every movement in both halves of the list carries a few words on what caused
 it: the sun arriving on the glass, the sun reaching deeper or easing off, the
 sun leaving, a sky that is no longer bright, a temperature that no longer calls

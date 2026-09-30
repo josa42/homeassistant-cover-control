@@ -40,11 +40,13 @@ from .const import (
     DECISION_HISTORY,
     DOMAIN,
     EVENT_DECISION,
+    MANUAL_GROUP,
     MIN_MOVEMENT_DELTA,
     PAUSE_FALLBACK,
     SETTLE_TIME,
     SUBENTRY_TYPE_COVER,
     TICK_INTERVAL,
+    Cause,
     Intent,
 )
 from .discovery import async_refresh_issue
@@ -106,6 +108,9 @@ class CoverRuntime:
         #: published by an entity of its own, because the decision sensor
         #: writes on every evaluation and would copy the whole list each time.
         self.events: list[dict[str, Any]] = []
+        #: When the cover was last moved by someone other than us, which is
+        #: what the grouping of those movements is measured from.
+        self.last_manual_at: datetime | None = None
 
     def events_on(self, now: datetime) -> list[dict[str, Any]]:
         """The list as it stands on the day `now` falls in.
@@ -144,6 +149,37 @@ class CoverRuntime:
                 )
                 return
         self.events.append({"at": now.isoformat(), "kind": kind, **detail})
+
+    def record_manual(self, position: int, now: datetime, handed_over: bool) -> None:
+        """Note a movement nothing here made.
+
+        A cover being driven by hand reports a position every step of the way,
+        and a person adjusting a blind has two or three goes at it. One entry
+        per report would bury the rest of the day, so anything within
+        MANUAL_GROUP of the last one updates that entry instead: it keeps the
+        time the fiddling started and carries where the cover ended up. The
+        window runs from the last movement rather than the first, so a long
+        session stays one entry as long as it never pauses for five minutes.
+        """
+        self.events = self.events_on(now)
+        grouped = (
+            self.events
+            and self.events[-1]["kind"] == "override"
+            and self.last_manual_at is not None
+            and now - self.last_manual_at < MANUAL_GROUP
+        )
+        self.last_manual_at = now
+        if grouped:
+            self.events[-1]["position"] = position
+            if handed_over:
+                self.events[-1]["cause"] = str(Cause.HANDED_OVER)
+            return
+        self.record_event(
+            "override",
+            now,
+            position=position,
+            cause=str(Cause.HANDED_OVER) if handed_over else None,
+        )
 
     @property
     def is_paused(self) -> bool:
@@ -281,46 +317,74 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         await self.async_request_refresh()
 
     @callback
-    def _detect_manual_move(self, runtime: CoverRuntime, event: Event) -> None:
-        """Decide whether a cover movement came from a human.
+    def _foreign_position(self, runtime: CoverRuntime, event: Event) -> int | None:
+        """The position a movement nothing here made left the cover at.
 
         Context is the primary signal and is conclusive when it matches. It is
         not conclusive when it does *not* match: radio covers report their
         position back from the device itself, with a fresh context. So a
-        non-matching context is only treated as manual once the cover has had
-        time to finish travelling and the reported position still disagrees
-        with what we asked for.
+        non-matching context only counts once the cover has had time to finish
+        travelling, and a report that agrees with where we sent it is ours
+        however foreign the context looks.
         """
-        if not runtime.state.active or runtime.state.override:
-            return
-        if runtime.dry_run:
-            # In dry run nothing we do is ever ours, so every movement would
-            # look like a human and latch an override on the first tick, which
-            # is exactly the state that stops reporting what it would do.
-            return
         if runtime.is_ours(event.context):
-            return
-        now = dt_util.utcnow()
-        last = runtime.last_command
-        if last is not None and now - last < SETTLE_TIME:
-            return
+            return None
         new_state = event.data.get("new_state")
-        if new_state is None or runtime.expected_position is None:
-            return
+        if new_state is None:
+            return None
         position = new_state.attributes.get("current_position")
         if position is None:
+            return None
+        last = runtime.last_command
+        if last is not None and dt_util.utcnow() - last < SETTLE_TIME:
+            return None
+        if (
+            runtime.expected_position is not None
+            and abs(position - runtime.expected_position) <= MIN_MOVEMENT_DELTA
+        ):
+            return None
+        return position
+
+    @callback
+    def _detect_manual_move(self, runtime: CoverRuntime, event: Event) -> None:
+        """Note a movement by hand, and hand control over if one is due.
+
+        Every movement nothing here made goes in the day's list, whether or not
+        an episode was running: a cover moved at nine in the evening is exactly
+        the kind of thing the list is read for. Handing control over is the
+        narrower case, and needs an episode to hand over.
+        """
+        position = self._foreign_position(runtime, event)
+        if position is None:
             return
-        if abs(position - runtime.expected_position) <= MIN_MOVEMENT_DELTA:
-            return
-        _LOGGER.debug(
-            "%s moved to %s%% by someone else (we asked for %s%%); "
-            "handing control over until this episode ends",
-            runtime.cover_entity,
-            position,
-            runtime.expected_position,
+        old_state = event.data.get("old_state")
+        moved = (
+            old_state is None
+            or position != old_state.attributes.get("current_position")
         )
-        runtime.state = replace(runtime.state, override=True)
-        runtime.record_event("override", now, position=position)
+        # In dry run nothing we do is ever ours, so every movement looks like a
+        # human. Recording them is right, but latching an override is not: that
+        # is the one state that stops reporting what the engine would do.
+        handing_over = (
+            runtime.state.active
+            and not runtime.state.override
+            and not runtime.dry_run
+            and runtime.expected_position is not None
+        )
+        if handing_over:
+            _LOGGER.debug(
+                "%s moved to %s%% by someone else (we asked for %s%%); "
+                "handing control over until this episode ends",
+                runtime.cover_entity,
+                position,
+                runtime.expected_position,
+            )
+            runtime.state = replace(runtime.state, override=True)
+        if handing_over or moved:
+            # A report that repeats the position the cover already had moved
+            # nothing, and only belongs in the list when it is the report that
+            # took the cover off the engine.
+            runtime.record_manual(position, dt_util.utcnow(), handing_over)
 
     # --- reading Home Assistant --------------------------------------------
 
