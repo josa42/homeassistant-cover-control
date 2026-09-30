@@ -15,14 +15,19 @@
 
 ### Changed
 
-- **The day's list is a grid, and has lost its headline.** Four columns, so a
-  day is read down them: the time, which way it went, the percentage aligned
-  right so 5 % and 100 % end at the same place, and why. No rules between the
-  rows and no header row, which would make five lines look like a report. The
-  card had `Heute gestellt` written across the top of it, which said nothing
-  the list below did not, and where the plan began there was a heading; it is
-  a rule saying `jetzt` now, because the reader is looking for where they are
-  in the day and that is a line, not a title.
+- **The day's list is a grid, and has lost its headline.** Four columns, read
+  down rather than across: the time, which way it went, the percentage aligned
+  right so 5 % and 100 % end in the same place, and why. The card had `Heute
+  gestellt` written across the top, which said nothing the list below it did
+  not, and a rule saying `jetzt` divides what happened from what is still to
+  come.
+
+  It is a fenced block, which is the only grid a markdown card can hold. The
+  card's HTML is sanitised against a whitelist with no `style` attribute, so a
+  CSS grid arrives with its columns stripped and reads as one long line, and a
+  markdown table is drawn with a 1px border on every cell that no card can turn
+  off. A fenced block keeps its spaces and is given padding and nothing else:
+  no rules, no background, no border.
 
 ### Fixed
 

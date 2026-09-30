@@ -36,7 +36,6 @@ const LABELS = {
     evPaused: "paused",
     evResumed: "resumed",
     evOverride: "moved by hand",
-    evSlats: "slats",
     now: "now",
     causes: {
       sun_on_glass: "sun is on the glass",
@@ -124,7 +123,6 @@ const LABELS = {
     evPaused: "pausiert",
     evResumed: "fortgesetzt",
     evOverride: "von Hand bewegt",
-    evSlats: "Lamellen",
     now: "jetzt",
     causes: {
       sun_on_glass: "Sonne auf dem Glas",
@@ -362,85 +360,61 @@ function weatherWord(entity, t) {
  *
  * Read from an entity of its own rather than from the logbook: the logbook
  * shows every change to the cover including ones nothing here made, rolls over
- * the last 24 hours rather than the day, and phrases it its own way.
+ * the last 24 hours rather than the day, and phrases it its own way. The plan
+ * comes from the decision sensor, which carries it because it is written on
+ * every evaluation anyway.
  *
- * The plan is rendered from the decision sensor, which carries it because it
- * is written on every evaluation anyway. A rule saying "now" divides the two,
- * and everything below it is dimmed: what a cover did and what it is going to
- * do must never be mistaken for one another.
+ * Laid out in a fenced block, which is the only grid a markdown card can hold.
+ * Its HTML is sanitised with a whitelist that has no `style` attribute, so a
+ * CSS grid arrives with its columns stripped and reads as one long line, and a
+ * table is drawn with a 1px border on every cell that no card can turn off. A
+ * fenced block is monospace, keeps its spaces, and is given padding and
+ * nothing else: no rules, no background, no border. Columns are therefore
+ * padded here, in the template, and every character in the first three of them
+ * is a narrow one so that the padding means what it says.
  *
- * Laid out as a grid rather than as sentences, because a day is read down a
- * column: the times under each other, the percentages under each other and
- * right aligned, so 5 % and 100 % end at the same place. No rules between the
- * rows and no header, which would make five lines look like a report.
+ * A rule saying "now" divides what happened from what is still to come, since
+ * dimming the second half is not available either.
  */
 function todayCard(entity, decision, t) {
   const causes = Object.entries(t.causes)
     .map(([code, word]) => `'${code}': '${word}'`)
     .join(", ");
-  const faint = "color: var(--secondary-text-color)";
 
-  // One entry is four cells, and the plan is made of the same shape, so a
-  // change to how a movement reads lands on both lists at once.
-  const cells = [
-    "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}",
-    `{% if e.kind == 'move' %}{% if e.up %}↑{% else %}↓{% endif %}`
-      + `{% elif e.kind == 'override' %}✋`
-      + `{% elif e.kind == 'paused' %}⏸`
-      + `{% elif e.kind == 'resumed' %}▶{% endif %}`,
-    "{% if e.position is defined and e.position is not none %}{{ e.position }} %{% endif %}",
-    // Why it moved, in four words. A pause and a resume are their own reason,
-    // and an entry recorded before causes existed carries none.
-    `{% if e.cause is defined and e.cause %}{{ {${causes}}.get(e.cause, e.cause) }}`
-      + `{% elif e.kind == 'override' %}${t.evOverride}`
-      + `{% elif e.kind == 'paused' %}${t.evPaused}`
-      + `{% elif e.kind == 'resumed' %}${t.evResumed}{% endif %}`
-      + `{% if e.tilt is defined %} · ${t.evSlats} {{ e.tilt }} °{% endif %}`,
-  ];
+  // One row, whichever list it came from: the plan is made of the same shape,
+  // so a change to how a movement reads lands on both at once. Every statement
+  // sits on the line it belongs to, because a stray newline inside a fenced
+  // block is a blank row in the middle of the day.
+  const row =
+    `{% set mark = ('↑' if e.up else '↓') if e.kind == 'move' else ' ' %}`
+      // "is defined" as well as "is not none": a movement that only set the
+      // slats carries no position at all, and would print a lone percent sign.
+      + "{% set pct = (e.position ~ ' %')"
+      + " if e.position is defined and e.position is not none else '' %}"
+      + `{% set why = ('✋ ' ~ (causes.get(e.cause) or '${t.evOverride}'))`
+      + ` if e.kind == 'override' else ('⏸ ${t.evPaused}') if e.kind == 'paused'`
+      + ` else ('▶ ${t.evResumed}') if e.kind == 'resumed'`
+      + " else causes.get(e.cause, '') %}"
+      // The slat angle rides along without its name: the column it would need
+      // costs more width than the word is worth on a phone.
+      + `{% if e.tilt is defined %}{% set why = why ~ ' ·' ~ e.tilt ~ '°' %}{% endif %}`
+      + "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }} {{ mark }}"
+      + ' {{ "%5s" | format(pct) }} {{ why }}\n';
 
-  // The percentage is the only cell read as a quantity, so it is the only one
-  // aligned right. The dimming is a theme variable rather than a grey, so it
-  // holds up in a dark theme as well as a light one.
-  const row = (dim) =>
-    cells
-      .map((cell, column) => {
-        const style = [column === 2 ? "text-align: right" : "", dim ? faint : ""]
-          .filter(Boolean)
-          .join("; ");
-        const body = dim ? `<em>${cell}</em>` : cell;
-        return `<span${style ? ` style="${style}"` : ""}>${body}</span>`;
-      })
-      .join("");
+  const rule = "─".repeat(9);
+  const content =
+    `{% set events = state_attr('${entity}', 'events') or [] %}`
+      + `{% set plan = state_attr('${decision}', 'plan') or [] %}`
+      + `{% set causes = {${causes}} %}`
+      + "{% if events | count == 0 and plan | count == 0 %}"
+      + t.noActions
+      + "{% else %}```text\n"
+      + "{% for e in events %}" + row + "{% endfor %}"
+      + `${rule} ${t.now} ${rule}\n`
+      + "{% for e in plan %}" + row + "{% endfor %}"
+      + "```{% endif %}";
 
-  // A rule across the whole grid with the word in the middle of it, rather
-  // than a heading over the plan: the reader is looking for where they are in
-  // the day, and that is a line, not a title.
-  const line = `<span style="border-top: 1px solid currentColor; opacity: 0.3;`
-    + ` flex: 1"></span>`;
-  const divider =
-    `<span style="grid-column: 1 / -1; ${faint}; display: flex;`
-      + ` align-items: center; gap: 8px; margin: 2px 0">`
-      + `${line}${t.now}${line}</span>`;
-
-  // Every bit of it on one line: a bare Jinja statement of its own leaves a
-  // blank line behind, and a blank line inside a block of HTML ends the block.
-  const grid =
-    '<div style="display: grid; grid-template-columns: auto auto auto 1fr;'
-      + ' column-gap: 12px; row-gap: 2px; align-items: baseline">'
-      + "{% for e in events %}" + row(false) + "{% endfor %}"
-      + divider
-      + "{% for e in plan %}" + row(true) + "{% endfor %}"
-      + "</div>";
-
-  return {
-    type: "markdown",
-    content:
-      `{% set events = state_attr('${entity}', 'events') or [] %}`
-        + `{% set plan = state_attr('${decision}', 'plan') or [] %}`
-        + "{% if events | count == 0 and plan | count == 0 %}"
-        + t.noActions
-        + "{% else %}" + grid + "{% endif %}",
-  };
+  return { type: "markdown", content };
 }
 
 function viewPath(name, taken) {
