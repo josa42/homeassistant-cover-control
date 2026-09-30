@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import CoverControlConfigEntry
 from .const import SUBENTRY_TYPE_COVER, Intent
@@ -114,9 +115,17 @@ class TodaySensor(ControlledCoverEntity, SensorEntity):
     @property
     def native_value(self) -> int | None:
         runtime = self.runtime
-        return None if runtime is None else len(runtime.events)
+        return None if runtime is None else len(self._events())
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        return {} if self.runtime is None else {"events": self._events()}
+
+    def _events(self) -> list[dict[str, Any]]:
+        """Today's entries, asked for by the clock rather than by the list.
+
+        The list is trimmed when something is recorded, so on a day where
+        nothing has happened yet it still holds yesterday.
+        """
         runtime = self.runtime
-        return {} if runtime is None else {"events": runtime.events}
+        return [] if runtime is None else runtime.events_on(dt_util.utcnow())

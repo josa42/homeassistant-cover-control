@@ -105,18 +105,28 @@ class CoverRuntime:
         #: writes on every evaluation and would copy the whole list each time.
         self.events: list[dict[str, Any]] = []
 
+    def events_on(self, now: datetime) -> list[dict[str, Any]]:
+        """The list as it stands on the day `now` falls in.
+
+        Read through here rather than off `events` directly: the list is only
+        trimmed when something is recorded, and a day where nothing has
+        happened yet would otherwise go on showing yesterday under today's
+        heading.
+        """
+        today = dt_util.as_local(now).date()
+        return [
+            event
+            for event in self.events
+            if dt_util.as_local(dt_util.parse_datetime(event["at"])).date() == today
+        ]
+
     def record_event(self, kind: str, now: datetime, **detail: Any) -> None:
         """Note something worth seeing in the day's list.
 
         A movement is two commands, the slats and then the run, and reads as
         one thing: they are merged while the second still belongs to the first.
         """
-        today = dt_util.as_local(now).date()
-        self.events = [
-            event
-            for event in self.events
-            if dt_util.as_local(dt_util.parse_datetime(event["at"])).date() == today
-        ]
+        self.events = self.events_on(now)
         if kind == "move" and self.events:
             last = self.events[-1]
             since = now - dt_util.parse_datetime(last["at"])

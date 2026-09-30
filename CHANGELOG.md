@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The day's list empties when the day turns.** A cover whose last movement
+  was yesterday evening still listed it under `Today`, and with only the hour
+  shown those entries read as times later today. The list was trimmed to the
+  current day only when something new was recorded, so a day where nothing had
+  happened yet went on publishing yesterday's. It is now filtered by the clock
+  when the sensor is read, and clears itself on the first evaluation after
+  midnight.
+
 ## 1.11.0 - 2026-09-23
 
 ### Changed

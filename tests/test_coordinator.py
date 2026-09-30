@@ -587,3 +587,21 @@ async def test_a_manual_takeover_is_in_the_day_list(
     last = runtime(entry).events[-1]
     assert last["kind"] == "override"
     assert last["position"] == 100
+
+
+async def test_the_day_list_empties_when_the_day_turns(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
+) -> None:
+    """Yesterday's list must not stand in for a day where nothing happened yet."""
+    set_scene(tilt=45)
+    await setup_entry(entry)
+    assert hass.states.get("sensor.raffstore_today").state == "1"
+
+    await entry.runtime_data.async_set_master(False)
+    freezer.tick(timedelta(days=1))
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    today = hass.states.get("sensor.raffstore_today")
+    assert today.state == "0", "yesterday's movements are still listed as today's"
+    assert today.attributes["events"] == []
