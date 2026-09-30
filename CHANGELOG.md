@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The day's list is a card of its own.** It was a markdown card, and a
+  markdown card cannot hold columns: its HTML is sanitised against a whitelist
+  with no `style` attribute, so the grid arrived with its columns stripped and
+  the whole day read as one long line. A table is no way round it either, being
+  drawn with a border on every cell that no card config can turn off. The
+  module that registers the dashboard strategy is already loaded on every
+  dashboard, so a card beside it costs nothing and may style itself: four
+  columns of real markup, digits set in `tabular-nums` so a column of times
+  lines up without padding, and what is still to come dimmed with a theme
+  colour rather than with a character.
+
+### Fixed
+
+- **A cover driven by hand is noticed while it is being driven.** A cover
+  reports its way through a run a percent or two at a time, and whether it had
+  moved was asked of the report before this one, which no two readings of a
+  run ever answer yes to. A blind pulled from 24 % to 45 % by hand was
+  therefore never seen at all, and the engine drove it back down seventeen
+  seconds later. The question is now asked of the position the run started
+  from, which the cover only leaves once it has been still long enough for a
+  run to be over.
+
 ## 1.13.0 - 2026-09-30
 
 ### Added
@@ -15,21 +41,14 @@
 
 ### Changed
 
-- **The day's list is a grid, and has lost its headline.** Four columns, read
-  down rather than across: the time, which way it went, the percentage aligned
-  right so 5 % and 100 % end in the same place, and why. A rule saying `jetzt`
-  divides what happened from what is still to come, and what is still to come
-  is dimmed. The card had `Heute gestellt` written across the top, which said
-  nothing the list below it did not.
-
-  It is a card of its own now rather than a markdown one, because a markdown
-  card cannot hold columns: its HTML is sanitised against a whitelist with no
-  `style` attribute, so a grid arrives with its columns stripped, a table is
-  drawn with a border on every cell that no card can turn off, and a fenced
-  block costs a monospace font. The module that registers the dashboard
-  strategy is already loaded on every dashboard, so a card beside it is free,
-  and a card may style itself. Digits are set with `tabular-nums`, so a column
-  of times lines up without anything being padded.
+- **The day's list is a grid, and has lost its headline.** Four columns, so a
+  day is read down them: the time, which way it went, the percentage aligned
+  right so 5 % and 100 % end at the same place, and why. No rules between the
+  rows and no header row, which would make five lines look like a report. The
+  card had `Heute gestellt` written across the top of it, which said nothing
+  the list below did not, and where the plan began there was a heading; it is
+  a rule saying `jetzt` now, because the reader is looking for where they are
+  in the day and that is a line, not a title.
 
 ### Fixed
 
@@ -42,15 +61,6 @@
   as still to come. The track now carries UTC moments like everything else
   here, and the comparison is between moments rather than between two ways of
   writing one.
-
-- **A cover driven by hand is noticed while it is being driven.** A cover
-  reports its way through a run a percent or two at a time, and whether it had
-  moved was asked of the report before this one, which no two readings of a
-  run ever answer yes to. A blind pulled from 24 % to 45 % by hand was
-  therefore never seen at all, and the engine drove it back down seventeen
-  seconds later. The question is now asked of the position the run started
-  from, which the cover only leaves once it has been still long enough for a
-  run to be over.
 
 - **A cover can be taken by hand before it has been commanded.** Handing
   control over was judged against the position of the last command, and a
