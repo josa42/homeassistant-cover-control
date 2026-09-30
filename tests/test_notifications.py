@@ -1,17 +1,25 @@
-"""One combined notification per evaluation, and only for real changes."""
+"""One combined notification per window, and only for real changes."""
 
 from __future__ import annotations
+
+from datetime import timedelta
 
 import pytest
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.cover_control.const import (
     CONF_COVER_ENTITY,
     CONF_DRY_RUN,
     CONF_NOTIFY_TARGET,
     DOMAIN,
+    GATE_DEBOUNCE,
+    NOTIFY_WINDOW,
 )
 
 from .conftest import COVER, COVER_DATA, HUB_DATA
@@ -60,9 +68,20 @@ def set_second_cover(hass: HomeAssistant, position: int = 100, tilt: int = 100) 
     )
 
 
+async def deliver(hass: HomeAssistant) -> None:
+    """Let the notification window run out, which is when anything is sent.
+
+    Changes are held for a while so that a sweep across the house arrives as
+    one message, so nothing is sent at the moment of the change itself.
+    """
+    async_fire_time_changed(hass, dt_util.utcnow() + NOTIFY_WINDOW + timedelta(seconds=1))
+    await hass.async_block_till_done()
+
+
 async def refresh(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
+    await deliver(hass)
 
 
 async def test_startup_only_sets_a_baseline(
@@ -125,6 +144,7 @@ async def test_resending_the_same_target_while_travelling_sends_nothing(
     """A travelling cover still reports the old position, so the command repeats."""
     set_scene(position=100)
     await setup_entry(notify_entry)
+    await deliver(hass)
     assert len(notifications) == 1
 
     await refresh(hass, notify_entry)  # cover still at 100, same target 50 again
@@ -152,6 +172,7 @@ async def test_a_move_right_after_startup_notifies(
     """The startup baseline suppresses unchanged states, not real movements."""
     set_scene(position=100)
     await setup_entry(notify_entry)
+    await deliver(hass)
 
     assert len(notifications) == 1
     assert "Shading to 50%" in notifications[0].data["message"]
@@ -273,3 +294,89 @@ async def test_a_malformed_target_is_reported_not_crashed(
 
     assert "is not a service" in caplog.text
     assert hass.states.get("sensor.raffstore_decision").state == "storm"
+
+
+async def test_movements_minutes_apart_arrive_as_one_notification(
+    hass: HomeAssistant, two_cover_entry, set_scene, setup_entry, notifications
+) -> None:
+    """A sweep across the house is one thing that happened, not six."""
+    set_scene(position=100)
+    set_second_cover(hass, 100)
+    await setup_entry(two_cover_entry)
+
+    # A second cover catches the sun a little later, in an evaluation of its own.
+    await two_cover_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert notifications == [], "nothing goes out while the window is open"
+
+    await deliver(hass)
+
+    assert len(notifications) == 1
+    lines = notifications[0].data["message"].splitlines()
+    assert [line.split(":")[0] for line in lines] == ["Raffstore", "Second"]
+
+
+async def test_a_cover_is_one_line_however_often_it_changes(
+    hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications
+) -> None:
+    """The line says where the cover ended up, not everywhere it has been."""
+    set_scene(position=100)
+    await setup_entry(notify_entry)  # shading, and waiting in the window
+
+    set_scene(position=100, wind=55.0)  # a storm on top of it, which does not wait
+    await notify_entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert len(notifications) == 1, "the storm took the waiting change with it"
+    message = notifications[0].data["message"]
+    assert len(message.splitlines()) == 1, "one cover, one line"
+    assert "Storm protection" in message, "the last state of it, not the first"
+
+
+async def test_an_episode_ending_without_moving_anything_sends_nothing(
+    hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications, freezer
+) -> None:
+    """The reason code turns over and the cover stands still. Not news.
+
+    This was most of the traffic: a cover already open when its episode ends
+    is not moved by the end of it.
+    """
+    # Sun overhead: the whole window may stay open, so nothing is commanded.
+    set_scene(position=100, tilt=100, sun_elevation=89.0)
+    await setup_entry(notify_entry)
+    await deliver(hass)
+    assert notifications == [], "nothing moved on the way in either"
+
+    set_scene(position=100, tilt=100, sun_elevation=89.0, sun_azimuth=0.0)
+    freezer.tick(GATE_DEBOUNCE + timedelta(minutes=1))  # past the hold
+    await refresh(hass, notify_entry)
+
+    assert hass.states.get("sensor.raffstore_decision").state == "neutral"
+    assert notifications == []
+
+
+async def test_a_cover_taken_by_hand_is_worth_telling(
+    hass: HomeAssistant, notify_entry, set_scene, setup_entry, notifications, freezer
+) -> None:
+    """Nothing moved, but what is holding the cover changed, which is news."""
+    from homeassistant.core import Context
+
+    from custom_components.cover_control.const import SETTLE_TIME
+
+    set_scene(position=50, tilt=45)
+    await setup_entry(notify_entry)
+    await deliver(hass)
+    notifications.clear()
+
+    freezer.tick(SETTLE_TIME + timedelta(seconds=10))
+    hass.states.async_set(
+        COVER,
+        "open",
+        {"current_position": 100, "current_tilt_position": 100, "supported_features": 255},
+        context=Context(),
+    )
+    await hass.async_block_till_done()
+    await refresh(hass, notify_entry)
+
+    assert len(notifications) == 1
+    assert "Manually moved" in notifications[0].data["message"]

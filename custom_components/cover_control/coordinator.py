@@ -24,7 +24,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -43,8 +46,10 @@ from .const import (
     DOMAIN,
     EVENT_DECISION,
     EVENTS_SAVE_DELAY,
+    HOLDING_INTENTS,
     MANUAL_GROUP,
     MIN_MOVEMENT_DELTA,
+    NOTIFY_WINDOW,
     PAUSE_FALLBACK,
     SETTLE_TIME,
     STORAGE_KEY,
@@ -94,6 +99,9 @@ class CoverRuntime:
         self.dry_run = False
         self.last_signature: tuple | None = None
         self.last_notified_destination: tuple | None = None
+        #: Whether something was holding this cover back at the last
+        #: evaluation. None until the first one, which only sets the baseline.
+        self.was_held: bool | None = None
         self.history: deque[Decision] = deque(maxlen=DECISION_HISTORY)
         self.decision: Decision | None = None
         self._contexts: dict[str, datetime] = {}
@@ -302,6 +310,9 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         self._unsub_tracker = None
         self._forecast_cache: dict[str, tuple[datetime, float | None]] = {}
         self._events_store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        #: What is waiting to be told, one line per cover, the latest winning.
+        self._pending_notice: dict[str, str] = {}
+        self._notify_unsub: Callable[[], None] | None = None
 
     @property
     def hub_config(self) -> dict[str, Any]:
@@ -403,6 +414,9 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         if self._unsub_tracker is not None:
             self._unsub_tracker()
             self._unsub_tracker = None
+        if self._notify_unsub is not None:
+            self._notify_unsub()
+            self._notify_unsub = None
 
     async def _handle_state_change(self, event: Event) -> None:
         entity_id = event.data["entity_id"]
@@ -705,17 +719,25 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
     def _is_change(runtime: CoverRuntime, decision: Decision) -> bool:
         """Record the decision and report whether it is worth notifying about.
 
-        A cover actually being moved always is. Otherwise only a changed intent
-        or reason counts, and the first evaluation after startup just sets the
-        baseline, or every restart would notify about every cover.
+        Two things are: the cover was moved, and what is holding it back
+        changed. A reason code turning over while the cover stands still is
+        not, and was most of the traffic: an episode ending on a cover that is
+        already open moves nothing, and nor does one starting on a cover that
+        is already where it needs to be.
 
-        Dry run never sends a command, so target drift there stays silent.
+        The first evaluation after startup only sets the baseline, or every
+        restart would notify about every cover. A movement is the exception,
+        because a movement at startup is still a movement.
+
+        Dry run never sends a command, so target drift there stays silent; a
+        storm or a takeover still reads as what it would do.
         """
         signature = decision.notify_signature
         if signature is None:
             return False
-        previous = runtime.last_signature
         runtime.last_signature = signature
+        held, was_held = decision.intent in HOLDING_INTENTS, runtime.was_held
+        runtime.was_held = held
         if decision.acted:
             # While a cover travels it keeps reporting positions short of the
             # target, so the same command is sent again; only a new target is
@@ -724,23 +746,47 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             if destination != runtime.last_notified_destination:
                 runtime.last_notified_destination = destination
                 return True
-        return previous is not None and previous != signature
+            return False
+        return was_held is not None and held != was_held
 
     async def _async_notify(self, changes: list[tuple[CoverRuntime, Decision]]) -> None:
-        """Send a single notification describing every cover that changed."""
+        """Hold a change back for a while, so that a sweep arrives as one message.
+
+        Covers move a few minutes apart as the sun crosses them, and six
+        notifications for one sweep of the house is five too many. Whatever
+        has gathered in the window goes out together, one line per cover with
+        the latest state of it, so a cover that moved twice is still one line.
+
+        A storm does not wait: it is the one change that wants reading now.
+        """
+        if not self.hub_config.get(CONF_NOTIFY_TARGET) or not changes:
+            return
+        for runtime, decision in changes:
+            self._pending_notice[runtime.subentry_id] = (
+                f"{'[Dry run] ' if decision.dry_run else ''}{runtime.title}: "
+                f"{decision.message}"
+            )
+        if any(decision.intent is Intent.STORM for _, decision in changes):
+            await self._async_send_pending()
+        elif self._notify_unsub is None:
+            self._notify_unsub = async_call_later(
+                self.hass, NOTIFY_WINDOW, self._async_send_pending
+            )
+
+    async def _async_send_pending(self, _now: datetime | None = None) -> None:
+        """Send everything that has gathered, as one notification."""
+        if self._notify_unsub is not None:
+            self._notify_unsub()
+            self._notify_unsub = None
+        lines = list(self._pending_notice.values())
+        self._pending_notice.clear()
         target = self.hub_config.get(CONF_NOTIFY_TARGET)
-        if not target or not changes:
+        if not target or not lines:
             return
         domain, _, service = str(target).partition(".")
         if not domain or not service:
             _LOGGER.warning("Notification target %r is not a service", target)
             return
-
-        lines = [
-            f"{'[Dry run] ' if decision.dry_run else ''}{runtime.title}: "
-            f"{decision.message}"
-            for runtime, decision in changes
-        ]
         try:
             await self.hass.services.async_call(
                 domain,

@@ -37,6 +37,11 @@ MIN_MOVEMENT_DELTA = 5
 #: never reaches its target can be re-commanded.
 SETTLE_TIME = timedelta(seconds=90)
 
+#: How long a change waits for others to join it before anything is sent. A
+#: sweep across the house takes a few minutes and is one thing that happened,
+#: so it arrives as one message rather than as six.
+NOTIFY_WINDOW = timedelta(minutes=5)
+
 #: Movements by hand closer together than this read as one go at the cover.
 #: Someone at the wall switch reports a position every step of the way, and a
 #: person adjusting a blind does it two or three times over; the day's list
@@ -136,6 +141,20 @@ class Cause(StrEnum):
     #: A movement by hand that took the cover off the engine for the rest
     #: of the episode, as opposed to one while nothing was running.
     HANDED_OVER = "handed_over"
+
+
+#: Intents that mean something is holding the cover back from being positioned.
+#: Entering or leaving one of them is worth telling a person about even when
+#: nothing moved; everything else only counts when the cover actually moves.
+HOLDING_INTENTS = frozenset(
+    {
+        Intent.STORM,
+        Intent.WINDOW_OPEN,
+        Intent.PAUSED,
+        Intent.OVERRIDE,
+        Intent.DISABLED,
+    }
+)
 
 
 class Reason(StrEnum):

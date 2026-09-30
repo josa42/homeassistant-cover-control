@@ -64,12 +64,21 @@ Decisions in dry run report `would_move: true` with `acted: false`, which is
 what the dashboard reads to show what would have happened.
 
 **Notifications** go to one notify service, configured on the hub, for example
-`notify.mobile_app_phone` or `notify.persistent_notification`. Each evaluation
-sends at most one notification, listing every cover that changed.
+`notify.mobile_app_phone` or `notify.persistent_notification`.
 
-A change is a cover actually being moved to a new position, or the intent or
-its reason changing: an episode started or ended, storm protection kicked in,
-a window opened, a cover was moved by hand. These never notify on their own:
+Two things are worth telling you about: a cover was moved, and what is holding
+a cover back changed, which is storm protection, an open window, a pause and a
+takeover by hand. A reason code turning over while the cover stands still is
+not one of them, so an episode ending on a cover that is already open is
+silent, as is one starting on a cover already where it needs to be.
+
+What there is gathers for five minutes before anything is sent, so the sweep
+across the house as the sun crosses it arrives as one message rather than as
+six. It carries one line per cover with the latest state of that cover, so a
+cover that moved twice inside the window is still one line. Storm protection
+does not wait, and takes whatever is waiting with it.
+
+These never notify on their own:
 
 - the target drifting without moving the cover: below the motor-protection
   threshold, or in dry run, where the cover never catches up

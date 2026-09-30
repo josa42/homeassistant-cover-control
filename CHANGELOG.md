@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Changed
+
+- **Far fewer notifications.** Two things send one now: a cover was moved, and
+  what is holding a cover back changed. A reason code turning over while the
+  cover stands still does not, and that was most of the traffic: an episode
+  ending on a cover that is already open moves nothing, and nor does one
+  starting on a cover already where it needs to be.
+
+  What is left is gathered for five minutes before it goes out, so the sweep
+  across the house as the sun crosses it arrives as one message rather than as
+  six, one line per cover carrying the latest state of it. A storm does not
+  wait, and takes whatever is waiting with it.
+
 ### Fixed
 
 - **The activity card's stylesheet reaches it.** It was added to the document,
