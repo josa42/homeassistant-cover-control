@@ -13,6 +13,7 @@ from . import CoverControlConfigEntry
 from .const import SUBENTRY_TYPE_COVER, Intent
 from .coordinator import CoverControlCoordinator, CoverRuntime
 from .entity import ControlledCoverEntity, HubEntity
+from .models import UNRECORDED_ATTRIBUTES
 
 
 def _count(runtimes, intent: Intent) -> int:
@@ -72,6 +73,9 @@ class DecisionSensor(ControlledCoverEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options: ClassVar[list[str]] = [intent.value for intent in Intent]
+    # The plan belongs on this sensor, which is written on every evaluation
+    # anyway, but not in the database: it is a list, and it shifts every time.
+    _unrecorded_attributes = UNRECORDED_ATTRIBUTES
 
     def __init__(
         self, coordinator: CoverControlCoordinator, runtime: CoverRuntime

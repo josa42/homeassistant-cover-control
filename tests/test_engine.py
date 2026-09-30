@@ -495,9 +495,22 @@ def test_every_decision_records_the_gates_it_applied() -> None:
 
 
 def test_compact_attributes_stay_flat_for_the_recorder() -> None:
+    """Everything the recorder writes has to stay a scalar.
+
+    Anything that cannot be is named in UNRECORDED_ATTRIBUTES and kept out of
+    the database by the sensor, so this guard follows that list rather than
+    being relaxed whenever something big is added.
+    """
+    from custom_components.cover_control.models import UNRECORDED_ATTRIBUTES
+
     decision, _ = run()
     attributes = decision.as_attributes()
-    assert not any(isinstance(value, (dict, list)) for value in attributes.values())
+    recorded = {
+        key: value
+        for key, value in attributes.items()
+        if key not in UNRECORDED_ATTRIBUTES
+    }
+    assert not any(isinstance(value, (dict, list)) for value in recorded.values())
     assert attributes["reason_code"] == "shading"
 
 
@@ -779,3 +792,80 @@ def test_the_slat_angle_defaults_to_half_closed() -> None:
     """Enough to stop direct sun, far more light than shutting it out."""
     decision, _ = run(hub={CONF_SHADED_TILT: None}, cover={CONF_SHADED_TILT: None})
     assert decision.target_tilt == 50
+
+
+# --- the plan for the rest of the day ---------------------------------------
+
+
+def sun_track(*samples: tuple[int, float, float]):
+    """A sun track from ``(minutes from now, elevation, azimuth)`` triples."""
+    return tuple(
+        (NOW + timedelta(minutes=minutes), elevation, azimuth)
+        for minutes, elevation, azimuth in samples
+    )
+
+
+def test_the_plan_is_the_rest_of_the_day_at_the_same_conditions() -> None:
+    """A south window with the sun climbing: the cover opens a step at a time.
+
+    At 45 degrees half the glass may be open, at 60 three quarters, at 70 all
+    of it, so the quarter-glass step turns the climb into two movements.
+    """
+    decision, _ = run(
+        hub={CONF_SHADING_STEP: 25.0},
+        sun_track=sun_track((0, 45.0, 180.0), (60, 60.0, 180.0), (120, 70.0, 180.0)),
+    )
+    assert [(entry["position"], entry.get("tilt")) for entry in decision.plan] == [
+        (75, None),
+        (100, None),
+    ], "expected two steps up as the sun rises"
+    assert decision.plan[0]["at"] == (NOW + timedelta(minutes=60)).isoformat()
+    assert decision.plan[0]["up"] is True
+
+
+def test_the_plan_leaves_out_the_movement_happening_now() -> None:
+    """The first sample is the present, and it only sets the starting point."""
+    decision, _ = run(sun_track=sun_track((0, 45.0, 180.0)))
+    assert decision.target_position == 50, "the cover is being sent somewhere now"
+    assert decision.plan == [], "the move happening now is not also planned"
+
+
+def test_the_plan_ends_the_episode_when_the_sun_leaves() -> None:
+    """The cover opens fully, once the gate has been false long enough."""
+    decision, _ = run(
+        sun_track=sun_track((0, 45.0, 180.0), (30, 20.0, 300.0), (60, 15.0, 310.0))
+    )
+    assert [entry["position"] for entry in decision.plan] == [100]
+    assert decision.plan[0]["at"] == (NOW + timedelta(minutes=60)).isoformat(), (
+        "the episode must not end before the debounce has run"
+    )
+
+
+def test_a_blocked_cover_plans_nothing() -> None:
+    """Paused, overridden or shut out by the weather: nothing is going to happen."""
+    track = sun_track((0, 45.0, 180.0), (60, 56.3, 180.0))
+    assert run(weather="rainy", sun_track=track)[0].plan == []
+    assert run(EpisodeState(paused_until=NOW + timedelta(hours=8)), sun_track=track)[
+        0
+    ].plan == []
+    assert run(window_open=True, sun_track=track)[0].plan == []
+    assert run(EpisodeState(active=True, override=True), sun_track=track)[0].plan == []
+    assert run(supports_position=False, sun_track=track)[0].plan == []
+
+
+def test_the_plan_sets_the_slats_with_the_first_movement() -> None:
+    """One entry, as a movement is one entry: the angle rides with the run."""
+    decision, _ = run(
+        current_position=100,
+        current_tilt=100,
+        sun_track=sun_track((0, 89.0, 180.0), (60, 45.0, 180.0)),
+    )
+    assert decision.plan == [
+        {
+            "at": (NOW + timedelta(minutes=60)).isoformat(),
+            "kind": "move",
+            "tilt": 45,
+            "up": False,
+            "position": 50,
+        }
+    ]

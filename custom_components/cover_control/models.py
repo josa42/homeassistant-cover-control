@@ -60,6 +60,12 @@ class EffectiveConfig:
         return {key: self.resolve(key).as_dict() for key in OVERRIDABLE}
 
 
+#: Attributes the decision sensor publishes but the recorder must not write.
+#: Everything else it publishes is a flat scalar, small enough to be copied
+#: into the database five times an hour; these are not.
+UNRECORDED_ATTRIBUTES = frozenset({"plan"})
+
+
 @dataclass(frozen=True, slots=True)
 class Gate:
     """One condition that was evaluated, and what it concluded."""
@@ -98,6 +104,10 @@ class Decision:
     #: Why the brightness gate concluded what it did. Empty when an earlier
     #: gate returned before brightness was ever evaluated.
     brightness: dict[str, Any] = field(default_factory=dict)
+    #: What this cover will do for the rest of the day if only the sun changes,
+    #: in the same shape as the entries the day's list is made of. Empty when
+    #: the conditions as they stand call for nothing.
+    plan: list[dict[str, Any]] = field(default_factory=list)
 
     def gate_passed(self, name: str) -> bool | None:
         """Whether one gate held, or None if it was never reached."""
@@ -160,6 +170,8 @@ class Decision:
             "pv_override_active": self.brightness.get("pv_override_active"),
             "pv_override_at": self.brightness.get("pv_override_at"),
             "wind_speed": self.inputs.get("wind_speed"),
+            # In UNRECORDED_ATTRIBUTES: a list that shifts on every evaluation.
+            "plan": self.plan,
         }
 
     def as_dict(self) -> dict[str, Any]:
@@ -181,6 +193,7 @@ class Decision:
             "gates": [gate.as_dict() for gate in self.gates],
             "geometry": self.geometry,
             "brightness": self.brightness,
+            "plan": self.plan,
             "settings": self.settings,
         }
 

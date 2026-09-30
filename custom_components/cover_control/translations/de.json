@@ -313,6 +313,9 @@
           },
           "wind_speed": {
             "name": "Windgeschwindigkeit"
+          },
+          "plan": {
+            "name": "Für heute geplant"
           }
         }
       },

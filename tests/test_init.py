@@ -107,15 +107,24 @@ async def test_decision_message_explains_the_number(
 async def test_decision_attributes_stay_flat(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
 ) -> None:
-    """The recorder writes these on every tick, so they must stay small."""
+    """The recorder writes these on every tick, so they must stay small.
+
+    The plan is the exception and says so: the sensor marks it unrecorded, so
+    it never reaches the database however long it gets.
+    """
+    from custom_components.cover_control.models import UNRECORDED_ATTRIBUTES
+
     set_scene()
     await setup_entry(entry)
 
-    attributes = hass.states.get("sensor.raffstore_decision").attributes
+    sensor = hass.states.get("sensor.raffstore_decision")
+    assert UNRECORDED_ATTRIBUTES <= set(sensor.attributes), "the exception is stale"
+    assert UNRECORDED_ATTRIBUTES <= sensor.state_info["unrecorded_attributes"]
     reported = {
         key: value
-        for key, value in attributes.items()
+        for key, value in sensor.attributes.items()
         if key not in ("options", "device_class", "friendly_name")
+        and key not in UNRECORDED_ATTRIBUTES
     }
     assert reported, "expected the decision attributes to be exposed"
     assert not any(isinstance(value, (dict, list)) for value in reported.values())

@@ -148,6 +148,20 @@ the minutes until it takes over. The countdown is rendered from
 `pv_override_at`, so it keeps ticking between the five-minute evaluations rather
 than going stale.
 
+The day's list on each cover's page carries what actually happened and, dimmed
+below it, what is still to come. The plan walks the same sun track the real
+evaluations will walk and applies the same geometry, the same step and the same
+"is it worth a motor start" rule, so an entry appears exactly where a command
+would go out. Every gate but the sun is held at the verdict it has right now,
+which is the question being asked: this is the rest of the day if the weather
+and the temperature stay as they are. A cover that is paused, moved by hand or
+shut out by the weather plans nothing, because on today's conditions it is not
+going to do anything.
+
+The plan is published on the decision sensor, which is written on every
+evaluation anyway, and marked unrecorded, so a list that shifts every five
+minutes never reaches the database.
+
 <br><br>
 
 ## Covers without a controller

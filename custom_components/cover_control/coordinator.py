@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 from collections import deque
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import voluptuous as vol
+from astral import Observer
+from astral.sun import zenith_and_azimuth
 from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import (
@@ -349,6 +351,29 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         except TypeError, ValueError:
             return None
 
+    def _sun_track(self, now: datetime) -> tuple[tuple[datetime, float, float], ...]:
+        """Where the sun will be from now until the end of the local day.
+
+        One entry per evaluation interval, worked out once per tick and shared
+        by every cover, because the sun is the same for all of them. The first
+        entry is the present moment, which is what lets the plan start from
+        where this evaluation is about to leave the cover.
+        """
+        observer = Observer(
+            self.hass.config.latitude,
+            self.hass.config.longitude,
+            self.hass.config.elevation,
+        )
+        local = dt_util.as_local(now)
+        end = dt_util.start_of_local_day(local) + timedelta(days=1)
+        track: list[tuple[datetime, float, float]] = []
+        when = local
+        while when < end:
+            zenith, azimuth = zenith_and_azimuth(observer, when)
+            track.append((when, 90.0 - zenith, azimuth))
+            when += TICK_INTERVAL
+        return tuple(track)
+
     async def _forecast_max(self, weather_entity: str | None) -> float | None:
         """Today's forecast high, cached for one tick.
 
@@ -382,7 +407,10 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         return value
 
     async def _build_inputs(
-        self, runtime: CoverRuntime, config: EffectiveConfig
+        self,
+        runtime: CoverRuntime,
+        config: EffectiveConfig,
+        sun_track: tuple[tuple[datetime, float, float], ...] = (),
     ) -> Inputs:
         cover = self.hass.states.get(runtime.cover_entity)
         available = cover is not None and cover.state not in (
@@ -423,6 +451,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             is_moving=_is_travelling(cover),
             sun_elevation=sun.attributes.get("elevation") if sun else None,
             sun_azimuth=sun.attributes.get("azimuth") if sun else None,
+            sun_track=sun_track,
             outdoor_temp=self._float_state(config.get(CONF_OUTDOOR_TEMP)),
             forecast_max=await self._forecast_max(weather_entity),
             indoor_temp=self._float_state(runtime.config.get(CONF_INDOOR_TEMP)),
@@ -436,6 +465,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
 
     async def _async_update_data(self) -> dict[str, Decision]:
         self.load_subentries()
+        sun_track = self._sun_track(dt_util.utcnow())
         decisions: dict[str, Decision] = {}
         changes: list[tuple[CoverRuntime, Decision]] = []
         for runtime in self.runtimes.values():
@@ -444,7 +474,7 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.dry_run = bool(self.hub_config.get(CONF_DRY_RUN)) or bool(
                 runtime.config.get(CONF_DRY_RUN)
             )
-            inputs = await self._build_inputs(runtime, config)
+            inputs = await self._build_inputs(runtime, config, sun_track)
             decision, state = evaluate(
                 inputs,
                 config,

@@ -37,6 +37,7 @@ const LABELS = {
     evResumed: "resumed",
     evOverride: "moved by hand to",
     evSlats: "slats",
+    planned: "still to come today",
     coversHeld: "Being positioned",
     coversLoose: "Left alone",
     details: "Details",
@@ -114,6 +115,7 @@ const LABELS = {
     evResumed: "fortgesetzt",
     evOverride: "von Hand bewegt auf",
     evSlats: "Lamellen",
+    planned: "heute noch geplant",
     coversHeld: "Wird gerade gestellt",
     coversLoose: "Bleibt in Ruhe",
     details: "Details",
@@ -336,29 +338,44 @@ function weatherWord(entity, t) {
 }
 
 /**
- * What happened to this cover today, in order.
+ * What happened to this cover today, in order, and what is still to come.
  *
  * Read from an entity of its own rather than from the logbook: the logbook
  * shows every change to the cover including ones nothing here made, rolls over
  * the last 24 hours rather than the day, and phrases it its own way.
+ *
+ * The plan is rendered from the decision sensor, which carries it because it
+ * is written on every evaluation anyway, and dimmed: what a cover did and what
+ * it is going to do must never be mistaken for one another, so the planned
+ * entries are greyed and italic rather than merely listed further down.
  */
-function todayCard(entity, t) {
+function todayCard(entity, decision, t) {
+  // One entry, whichever list it came from: the plan is made of the same
+  // shape, so a change to how a movement reads lands on both at once.
+  const entry =
+    "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}"
+      + `{% if e.kind == 'move' %} {% if e.up %}\u2191{% else %}\u2193{% endif %}`
+      + "{% if e.position is defined %} {{ e.position }} %{% endif %}"
+      + `{% if e.tilt is defined %} \u00b7 ${t.evSlats} {{ e.tilt }} \u00b0{% endif %}`
+      + `{% elif e.kind == 'paused' %} \u23f8 ${t.evPaused}`
+      + `{% elif e.kind == 'resumed' %} \u25b6 ${t.evResumed}`
+      + `{% elif e.kind == 'override' %} \u270b ${t.evOverride} {{ e.position }} %`
+      + "{% endif %}";
+  // The colour is a theme variable rather than a grey, so the dimming holds up
+  // in a dark theme as well as a light one.
+  const dim = (body) =>
+    `<span style="color: var(--secondary-text-color)"><em>${body}</em></span>`;
+
   return {
     type: "markdown",
     title: t.actionsToday,
     content: [
       `{% set events = state_attr('${entity}', 'events') or [] %}`
-        + "{% if events | count == 0 %}" + t.noActions + "{% endif %}"
-        + "{% for e in events %}"
-        + "{{ as_local(as_datetime(e.at)).strftime('%H:%M') }}"
-        + `{% if e.kind == 'move' %} {% if e.up %}\u2191{% else %}\u2193{% endif %}`
-        + "{% if e.position is defined %} {{ e.position }} %{% endif %}"
-        + `{% if e.tilt is defined %} \u00b7 ${t.evSlats} {{ e.tilt }} \u00b0{% endif %}`
-        + `{% elif e.kind == 'paused' %} \u23f8 ${t.evPaused}`
-        + `{% elif e.kind == 'resumed' %} \u25b6 ${t.evResumed}`
-        + `{% elif e.kind == 'override' %} \u270b ${t.evOverride} {{ e.position }} %`
-        + "{% endif %}  \n"
-        + "{% endfor %}",
+        + `{% set plan = state_attr('${decision}', 'plan') or [] %}`
+        + "{% if events | count == 0 and plan | count == 0 %}" + t.noActions + "{% endif %}"
+        + "{% for e in events %}" + entry + "  \n{% endfor %}"
+        + "{% if plan | count > 0 %}" + dim(t.planned) + "  \n{% endif %}"
+        + "{% for e in plan %}" + dim(entry) + "  \n{% endfor %}",
     ].join("\n"),
   };
 }
@@ -610,7 +627,7 @@ function coverView(cover, t) {
           : []),
       ].join("\n"),
     },
-    ...(cover.todayEntity ? [todayCard(cover.todayEntity, t)] : []),
+    ...(cover.todayEntity ? [todayCard(cover.todayEntity, decision, t)] : []),
     {
       type: "history-graph",
       hours_to_show: 24,

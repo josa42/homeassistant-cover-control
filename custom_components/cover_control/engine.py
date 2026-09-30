@@ -41,6 +41,7 @@ from .const import (
     DEFAULT_SEATING_POINT,
     FACADE_OFFSET,
     GATE_DEBOUNCE,
+    MIN_MOVEMENT_DELTA,
     PV_OVERRIDE_SUSTAIN,
     CoverType,
     Facade,
@@ -66,6 +67,10 @@ class Inputs:
     is_moving: bool = False
     sun_elevation: float | None = None
     sun_azimuth: float | None = None
+    #: Where the sun will be for the rest of the local day, one entry per
+    #: evaluation interval, as ``(when, elevation, azimuth)``. Only the plan
+    #: reads it; every decision about now is made from the two values above.
+    sun_track: tuple[tuple[datetime, float, float], ...] = ()
     outdoor_temp: float | None = None
     forecast_max: float | None = None
     indoor_temp: float | None = None
@@ -118,6 +123,22 @@ def _cover_setting(config: EffectiveConfig, key: str):
     return config.cover(key, COVER_DEFAULTS.get(key))
 
 
+def shading_position(config: EffectiveConfig, profile: float) -> int:
+    """The position that keeps the sun within the allowed depth, in steps.
+
+    Shared with the plan, so what it says the cover will do at 15:20 is worked
+    out by the same code that will decide it when 15:20 comes.
+    """
+    ideal = geometry.required_glass_fraction(
+        float(_cover_setting(config, CONF_MAX_DEPTH)),
+        float(_cover_setting(config, CONF_SILL_HEIGHT)),
+        float(config.cover(CONF_WINDOW_HEIGHT, 1.0)),
+        profile,
+    )
+    fraction = geometry.step_glass_fraction(ideal, float(config.get(CONF_SHADING_STEP)))
+    return geometry.glass_to_position(fraction, _seating_point(config))
+
+
 def _window_azimuth(config: EffectiveConfig) -> float:
     """Which way the window faces, in degrees.
 
@@ -133,6 +154,69 @@ def _window_azimuth(config: EffectiveConfig) -> float:
     return (orientation + FACADE_OFFSET[facade]) % 360.0
 
 
+def _plan_rest_of_day(
+    inputs: Inputs,
+    config: EffectiveConfig,
+    intent: Intent,
+    active: bool,
+    position: int | None,
+    tilt: int | None,
+) -> list[dict[str, Any]]:
+    """What this cover will do for the rest of the day if only the sun changes.
+
+    Every gate but the sun is held at the verdict it has right now, which is
+    the question the reader is actually asking: the plan is what happens if
+    the weather and the temperature stay as they are. It walks the same sun
+    track the real evaluations will walk, one entry per interval, and applies
+    the same geometry, the same step and the same "is it worth a motor start"
+    rule, so an entry only appears where a command would actually go out.
+    """
+    azimuth = _window_azimuth(config)
+    fov_left = float(_cover_setting(config, CONF_FOV_LEFT))
+    fov_right = float(_cover_setting(config, CONF_FOV_RIGHT))
+    shaded_tilt = int(config.get(CONF_SHADED_TILT))
+    heating = intent is Intent.HEATING
+
+    planned: list[dict[str, Any]] = []
+    false_since: datetime | None = None
+    # The track opens on the present moment, which is walked like any other:
+    # it moves the cover to where this very evaluation is about to send it, so
+    # the first planned entry is a second movement rather than a repeat of the
+    # one happening now. That opening entry is dropped on the way out.
+    for when, elevation, sun_azimuth in inputs.sun_track:
+        delta = geometry.azimuth_delta(sun_azimuth, azimuth)
+        if geometry.sun_on_window(elevation, delta, fov_left, fov_right):
+            active, false_since = True, None
+            profile = geometry.profile_angle(elevation, delta)
+            target = 100 if heating else shading_position(config, profile)
+            # A cover driven fully up has no angle left to set, exactly as the
+            # decision itself decides.
+            target_tilt = None if target == 100 else shaded_tilt
+        elif active:
+            # The gates are false, but an episode is not ended by a passing
+            # cloud or a sun that has just slipped off the window.
+            false_since = false_since or when
+            if when - false_since < GATE_DEBOUNCE:
+                continue
+            active, target, target_tilt = False, 100, None
+        else:
+            continue
+
+        entry: dict[str, Any] = {"at": when.isoformat(), "kind": "move"}
+        if (
+            inputs.supports_tilt
+            and target_tilt is not None
+            and (tilt is None or abs(target_tilt - tilt) >= MIN_MOVEMENT_DELTA)
+        ):
+            entry["tilt"] = tilt = target_tilt
+        if position is None or abs(target - position) >= MIN_MOVEMENT_DELTA:
+            entry["up"] = position is not None and target > position
+            entry["position"] = position = target
+        if "position" in entry or "tilt" in entry:
+            planned.append(entry)
+    return [entry for entry in planned if entry["at"] > inputs.now.isoformat()]
+
+
 def evaluate(
     inputs: Inputs,
     config: EffectiveConfig,
@@ -144,6 +228,11 @@ def evaluate(
     """Evaluate one cover and return its decision plus the new state."""
     gates: list[Gate] = []
     brightness: dict[str, Any] = {}
+    #: Filled once the gates that are not the sun have been judged, and read by
+    #: every ``decide`` below. A cover that is blocked, paused or unavailable
+    #: never reaches that point and returns with nothing planned, which is the
+    #: honest answer: on today's conditions it is not going to do anything.
+    planned: list[dict[str, Any]] = []
     raw_inputs = {
         "sun_elevation": inputs.sun_elevation,
         "sun_azimuth": inputs.sun_azimuth,
@@ -177,6 +266,7 @@ def evaluate(
             tilt = None
         decision = Decision(
             timestamp=inputs.now,
+            plan=planned,
             cover_entity=cover_entity,
             intent=intent,
             reason=reason,
@@ -430,6 +520,29 @@ def evaluate(
             + (f"; held by {hysteresis} C" if holding_cool or holding_heat else ""),
         )
     )
+
+    # Everything but the sun has now been judged, which is exactly what the
+    # plan holds still: it asks what the rest of the day looks like if the
+    # weather and the temperature stay where they are and only the sun moves.
+    # A cover moved by hand is left alone until the episode ends, and one that
+    # cannot take a position is never driven at all: neither has a plan worth
+    # printing, however the sun goes.
+    if (
+        bright
+        and (wants_cooling or wants_heating)
+        and inputs.supports_position
+        and not state.override
+    ):
+        planned.extend(
+            _plan_rest_of_day(
+                inputs,
+                config,
+                Intent.HEATING if wants_heating else Intent.COOLING,
+                state.active,
+                inputs.current_position,
+                inputs.current_tilt,
+            )
+        )
 
     desired: Intent
     if on_window and bright and wants_cooling:

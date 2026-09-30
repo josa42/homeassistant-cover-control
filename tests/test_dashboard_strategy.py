@@ -362,6 +362,14 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
                 "device_id": "az",
                 "translation_key": "decision",
             },
+            # The day's list carries the plan beside what already happened, so
+            # the card only appears for a cover that has this entity.
+            "sensor.az_today": {
+                "entity_id": "sensor.az_today",
+                "platform": "cover_control",
+                "device_id": "az",
+                "translation_key": "today",
+            },
         },
         "states": {
             "switch.cc_enabled": {

@@ -4,6 +4,31 @@
 
 ### Added
 
+- **The day's list says what is still to come.** Under what a cover actually
+  did today, its page now lists what it will do for the rest of the day if the
+  weather and the temperature stay as they are, dimmed and in italics so a plan
+  is never mistaken for a movement:
+
+  ```
+  08:32 ↓ 0 %
+  09:28 ↑ 25 % · Lamellen 50 °
+  heute noch geplant
+  15:20 ↑ 50 %
+  17:05 ↑ 75 %
+  17:30 ↑ 100 %
+  ```
+
+  It is worked out by walking the sun to the end of the local day, one step per
+  evaluation interval, through the same geometry, the same shading step and the
+  same "is it worth a motor start" rule the live decision uses, so an entry
+  appears where a command would actually go out and nowhere else. Every gate
+  but the sun is held where it stands, so a cover that is paused, overridden or
+  under a cloudy sky plans nothing.
+
+  The plan rides on the decision sensor, which is written on every evaluation
+  anyway, and is marked unrecorded: a list that shifts every five minutes has
+  no business in the database.
+
 - **The debug view shows the forecast high.** The temperature gate compares
   `Shade above` against the outdoor sensor *and* today's forecast maximum, and
   either one passing is enough. Only the outdoor reading was on the card, so a
