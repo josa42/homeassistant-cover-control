@@ -450,11 +450,18 @@ def evaluate(
         )
     )
     if state.paused_until is not None:
+        # A cover moved by hand is paused by that movement, and reported as
+        # what it is rather than as a pause: the reader wants to know that
+        # somebody moved it, not merely that something is holding it.
+        by_hand = state.override
         return decide(
-            Intent.PAUSED,
-            Reason.PAUSED,
-            "Paused by hand; leaving this cover alone until the next sunrise.",
-            blocked_by="paused",
+            Intent.OVERRIDE if by_hand else Intent.PAUSED,
+            Reason.MANUAL_OVERRIDE if by_hand else Reason.PAUSED,
+            "Moved by hand; leaving this cover exactly where it was put until "
+            "the next sunrise."
+            if by_hand
+            else "Paused by hand; leaving this cover alone until the next sunrise.",
+            blocked_by="manual_override" if by_hand else "paused",
             new_state=state,
         )
 

@@ -142,7 +142,15 @@ class CoverRuntime:
         for a run to be over. Everything inside a run is judged against the
         position that run started from.
         """
-        if self.last_report_at is None or now - self.last_report_at >= SETTLE_TIME:
+        if (
+            self.resting_position is None
+            or self.last_report_at is None
+            or now - self.last_report_at >= SETTLE_TIME
+        ):
+            # Having none at all is not the same as having a stale one: the
+            # first report after a restart carries no previous position, and
+            # without this the run that follows it would have nothing to be
+            # judged against and would pass for ours.
             self.resting_position = was
         self.last_report_at = now
         return self.resting_position
@@ -482,12 +490,14 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
 
     @callback
     def _detect_manual_move(self, runtime: CoverRuntime, event: Event) -> None:
-        """Note a movement by hand, and hand control over if one is due.
+        """Note a movement by hand, and leave that cover alone until sunrise.
 
-        Every movement nothing here made goes in the day's list, whether or not
-        an episode was running: a cover moved at nine in the evening is exactly
-        the kind of thing the list is read for. Handing control over is the
-        narrower case, and needs an episode to hand over.
+        Moving a cover by hand means "leave it there", so it pauses that cover
+        exactly as the pause button does. It used to need a running episode to
+        hand anything over, and lasted only as long as that episode: a cover
+        closed by hand in the morning was opened again the moment the sun
+        called for shading, and one closed during an episode was opened by the
+        end of it, which is the opposite of what the hand asked for.
         """
         position = self._foreign_position(runtime, event)
         if position is None:
@@ -498,27 +508,25 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             or position != old_state.attributes.get("current_position")
         )
         # In dry run nothing we do is ever ours, so every movement looks like a
-        # human. Recording them is right, but latching an override is not: that
-        # is the one state that stops reporting what the engine would do.
-        handing_over = (
-            runtime.state.active
-            and not runtime.state.override
-            and not runtime.dry_run
-        )
-        if handing_over:
+        # human. Recording them is right, but pausing is not: that would stop
+        # the one thing a dry run is for, which is saying what it would do.
+        taken = not runtime.dry_run
+        if taken:
             _LOGGER.debug(
                 "%s moved to %s%% by someone else (we last asked for %s); "
-                "handing control over until this episode ends",
+                "leaving it there until the next sunrise",
                 runtime.cover_entity,
                 position,
                 runtime.expected_position,
             )
-            runtime.state = replace(runtime.state, override=True)
-        if handing_over or moved:
+            runtime.state = replace(
+                runtime.state, override=True, paused_until=self.next_sunrise()
+            )
+        if taken or moved:
             # A report that repeats the position the cover already had moved
             # nothing, and only belongs in the list when it is the report that
             # took the cover off the engine.
-            runtime.record_manual(position, dt_util.utcnow(), handing_over)
+            runtime.record_manual(position, dt_util.utcnow(), taken)
 
     # --- reading Home Assistant --------------------------------------------
 

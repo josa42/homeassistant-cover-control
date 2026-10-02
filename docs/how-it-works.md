@@ -10,7 +10,7 @@ order is fixed:
 | 1 | Storm | Wind above the threshold. Retracts, closes or ignores, per cover. Outranks everything, including a manual override. |
 | 2 | Window open | The cover is left alone while the window contact reports open. |
 | 3 | Paused | Paused with the Pause button. Hands off until the next sunrise. |
-| 4 | Manual override | Someone moved it by hand. Hands off until the episode ends. |
+| 4 | Manual override | Someone moved it by hand. Hands off until the next sunrise. |
 | 5 | Cooling / heating | Shades against solar gain, or opens to let the sun warm the room. |
 | 6 | Neutral | Nothing to do. The cover is not touched. |
 
@@ -251,9 +251,19 @@ from the device itself with a fresh context, so a non-matching context is only
 treated as manual once the cover has had time to finish travelling and the
 reported position still disagrees with what was asked for.
 
-An override holds for the rest of the current episode. When the episode ends
-the integration takes control back and opens the cover. The **Resume** button on
-each cover, or **Resume all** on the hub, hands control back immediately.
+A movement by hand means "leave it there", so it pauses that cover exactly as
+the **Pause** button does: the cover stays where it was put until the next
+sunrise, whether or not an episode was running when it happened, and the end of
+an episode does not open it again. Storm protection still outranks it, because
+that one is about the hardware rather than about the view. The **Resume** button
+on each cover, or **Resume all** on the hub, hands control back at once, and a
+pause that runs out starts fresh without a command, so nothing is flung open at
+dawn.
+
+It used to hold only for the rest of the episode it happened in, and only if
+one was running at all. A cover closed by hand on a cool morning was opened as
+soon as the day warmed up, and one closed at noon was opened again by the first
+passing cloud that ended the episode.
 
 <br><br>
 
@@ -272,7 +282,7 @@ one pressed at 23:00 runs to that same morning.
   command, so a pause pressed on a hot afternoon does not open the blinds just
   after sunrise. A new episode begins once the sun and temperature call for one.
 
-Unlike a manual override, which ends with the episode, a pause ends on the clock.
+A movement by hand pauses the cover in the same way, and ends the same way.
 
 <br><br>
 

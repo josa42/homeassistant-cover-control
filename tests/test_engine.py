@@ -945,3 +945,32 @@ def test_the_plan_does_not_repeat_the_movement_going_out_now() -> None:
 
     assert decision.target_position == 50, "the cover is being sent there now"
     assert [entry["position"] for entry in decision.plan] == [100]
+
+
+def test_a_cover_moved_by_hand_is_not_opened_by_the_end_of_its_episode() -> None:
+    """The end of an episode opens a cover fully. Not one somebody moved.
+
+    Regression: a takeover lasted only as long as the episode it happened in,
+    and the end of that episode opened the cover and released the takeover. A
+    cover pulled shut at noon was open again by the first passing cloud.
+    """
+    taken = EpisodeState(
+        active=True,
+        intent=Intent.COOLING,
+        override=True,
+        paused_until=NOW + timedelta(hours=8),
+        gate_false_since=NOW - timedelta(minutes=11),
+    )
+    decision, state = run(taken, sun_azimuth=20.0)  # the sun has left the window
+
+    assert decision.intent is Intent.OVERRIDE
+    assert decision.reason is Reason.MANUAL_OVERRIDE
+    assert decision.target_position is None, "nothing opens it"
+    assert state.override and state.paused_until is not None
+
+
+def test_a_pause_nobody_asked_for_by_hand_still_reads_as_a_pause() -> None:
+    paused = EpisodeState(paused_until=NOW + timedelta(hours=8))
+    decision, _ = run(paused)
+    assert decision.intent is Intent.PAUSED
+    assert decision.reason is Reason.PAUSED

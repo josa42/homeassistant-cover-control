@@ -138,8 +138,8 @@ class Cause(StrEnum):
     TEMP_NEUTRAL = "temp_neutral"
     SUN_WARMS = "sun_warms"
     STORM = "storm"
-    #: A movement by hand that took the cover off the engine for the rest
-    #: of the episode, as opposed to one while nothing was running.
+    #: A movement by hand, which leaves the cover where it was put until the
+    #: next sunrise. Carried by the movement that did it.
     HANDED_OVER = "handed_over"
 
 

@@ -128,10 +128,14 @@ async def test_landing_near_our_target_is_not_an_override(
     assert not runtime(entry).state.override
 
 
-async def test_no_override_is_recorded_outside_an_episode(
+async def test_a_movement_by_hand_holds_outside_an_episode_too(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, freezer
 ) -> None:
-    """With no episode running the integration is not driving it."""
+    """Moving a cover by hand means leave it there, episode or no episode.
+
+    It used to mean nothing at all outside one, so a cover closed by hand on a
+    cool morning was opened again as soon as the day warmed up.
+    """
     set_scene(outdoor="18.0")
     await setup_entry(entry)
     assert not runtime(entry).state.active
@@ -139,7 +143,8 @@ async def test_no_override_is_recorded_outside_an_episode(
     freezer.tick(SETTLE_TIME + timedelta(seconds=10))
     await human_moves(hass, 10)
 
-    assert not runtime(entry).state.override
+    assert runtime(entry).state.override
+    assert runtime(entry).is_paused
 
 
 async def test_resume_button_hands_control_back(
@@ -641,9 +646,7 @@ async def test_a_movement_by_hand_is_listed_without_an_episode(
     last = runtime(entry).events[-1]
     assert last["kind"] == "override"
     assert last["position"] == 40
-    assert "cause" not in last or last["cause"] is None, (
-        "nothing was handed over, because nothing was holding the cover"
-    )
+    assert last["cause"] == "handed_over", "and the cover is left where it was put"
 
 
 async def test_movements_by_hand_close_together_are_one_entry(
@@ -804,3 +807,30 @@ async def test_a_cover_that_reports_its_way_through_a_manual_run(
     assert last["kind"] == "override"
     assert last["position"] == 70, "the entry carries where the run ended"
     assert last["cause"] == "handed_over"
+
+
+async def test_a_movement_by_hand_outside_an_episode_still_holds(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    """Closing the covers in the morning has to survive the sun arriving.
+
+    Regression: a takeover needed a running episode to take anything over, so
+    a cover closed by hand before the sun reached it was opened again the
+    moment the engine found something to do.
+    """
+    set_scene(position=100, sun_elevation=-10.0)  # night: nothing is running
+    await setup_entry(entry)
+    assert not runtime(entry).state.active
+
+    await human_moves(hass, 0)  # pulled shut by hand
+
+    assert runtime(entry).state.override
+    assert runtime(entry).is_paused, "moving it by hand pauses it"
+
+    set_scene(position=0, tilt=45)  # and the sun comes round to the window
+    sent = len(cover_calls["position"])
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert len(cover_calls["position"]) == sent, "it was left where it was put"
+    assert hass.states.get("sensor.raffstore_decision").state == "override"

@@ -10,7 +10,8 @@ and can always tell you why it did what it did.
 It works out where the sun is relative to each window, how far direct sunlight
 would reach into the room, and moves the cover just enough to keep that within
 the limit you set. It also opens covers to let the sun warm a cold room,
-retracts them in a storm, and stays out of the way when you move one by hand.
+retracts them in a storm, and leaves a cover you moved by hand exactly where
+you put it until the next day.
 
 <br><br>
 

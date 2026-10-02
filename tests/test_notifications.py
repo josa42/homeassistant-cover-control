@@ -379,4 +379,4 @@ async def test_a_cover_taken_by_hand_is_worth_telling(
     await refresh(hass, notify_entry)
 
     assert len(notifications) == 1
-    assert "Manually moved" in notifications[0].data["message"]
+    assert "Moved by hand" in notifications[0].data["message"]

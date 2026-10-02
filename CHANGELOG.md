@@ -4,6 +4,19 @@
 
 ### Changed
 
+- **Moving a cover by hand pauses it.** It means "leave it there", and it now
+  does what the pause button does: the cover stays where it was put until the
+  next sunrise, and **Resume** hands control back at once. Storm protection
+  still outranks it.
+
+  Before, a takeover needed an episode to be running and lasted only as long as
+  that episode. Both halves were wrong in the same way. A cover closed by hand
+  at eight in the morning was opened again at half past twelve, when the sun
+  finally called for shading, because nothing had been running to take over.
+  One closed during an episode was opened by the end of that episode, which is
+  what the first passing cloud does, and the end of an episode opens a cover
+  fully. Correcting it by hand then started the cycle over.
+
 - **Far fewer notifications.** Two things send one now: a cover was moved, and
   what is holding a cover back changed. A reason code turning over while the
   cover stands still does not, and that was most of the traffic: an episode

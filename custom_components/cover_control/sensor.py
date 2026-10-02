@@ -62,7 +62,9 @@ class HubStatusSensor(HubEntity, SensorEntity):
             "shading": _count(runtimes, Intent.COOLING),
             "heating": _count(runtimes, Intent.HEATING),
             "overridden": sum(1 for r in runtimes if r.state.override),
-            "paused": sum(1 for r in runtimes if r.is_paused),
+            # A movement by hand pauses the cover, so every takeover is also a
+            # pause. Counted as what it is, and only once.
+            "paused": sum(1 for r in runtimes if r.is_paused and not r.state.override),
             "storm": sum(1 for r in runtimes if r.state.storm_latched),
             "enabled": self.coordinator.master_enabled,
         }
