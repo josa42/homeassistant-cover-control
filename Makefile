@@ -77,7 +77,11 @@ release:
 	@git fetch --quiet --tags origin main
 	@version="$(VERSION)"; \
 	if [ -z "$$version" ]; then \
-		last=$$(git describe --tags --abbrev=0 --match 'v*' origin/main); \
+		last=$$(git describe --tags --abbrev=0 --match 'v*' origin/main 2>/dev/null); \
+		if [ -z "$$last" ]; then \
+			echo "No release yet, pass the first version: make release VERSION=1.2.3" >&2; \
+			exit 1; \
+		fi; \
 		if git log --format=%s "$$last..origin/main" | grep -qE '^feat(\(.*\))?!?:'; then \
 			version=minor; \
 		else \

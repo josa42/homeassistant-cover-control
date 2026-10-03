@@ -164,13 +164,15 @@ imports, so most of the behaviour is testable directly.
 ### Releasing
 
 ```bash
-gh workflow run release -f version=0.2.0
+make release
 ```
 
-`version` also takes `major`, `minor` or `patch`. The release workflow runs the
-tests and the linter first, then bumps the manifest version and
-`STRATEGY_VERSION`, dates the changelog, commits, tags, pushes and publishes the
-release with the zip. A failure before the push changes nothing.
+Releases a minor version when a `feat` commit landed since the last release,
+otherwise a patch. Pass `VERSION=1.2.3`, `major`, `minor` or `patch` to choose.
+The release workflow runs the tests and the linter first, then bumps the
+manifest version and `STRATEGY_VERSION`, dates the changelog, commits, tags,
+pushes and publishes the release with the zip. A failure before the push changes
+nothing.
 
 <br><br>
 
