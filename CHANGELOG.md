@@ -17,6 +17,11 @@
 - **CI calls the shared workflows in josa42/actions.** They moved there from
   josa42/gha-workflows.
 
+### Fixed
+
+- **The activity card test passes on a machine in UTC.** It expected times
+  in Berlin time but formatted them in the machine's own zone, so CI failed.
+
 ## 1.14.0 - 2026-09-30
 
 ### Changed

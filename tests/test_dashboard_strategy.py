@@ -255,6 +255,7 @@ console.log(JSON.stringify({
 def render_card(tmp_path, events, plan, language="de"):
     """Build the activity card in node and hand back its cells."""
     import json
+    import os
     import shutil
     import subprocess
 
@@ -274,6 +275,9 @@ def render_card(tmp_path, events, plan, language="de"):
     result = subprocess.run(
         [node, str(tmp_path / "card.js"), str(ASSET.resolve()), str(tmp_path / "hass.json")],
         capture_output=True, text=True, check=True, timeout=30,
+        # Times are formatted in the reader's own zone. Pin it, so the
+        # expected times hold on a machine in UTC as well.
+        env={**os.environ, "TZ": "Europe/Berlin"},
     )
     return json.loads(result.stdout)
 
