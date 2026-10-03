@@ -164,12 +164,13 @@ imports, so most of the behaviour is testable directly.
 ### Releasing
 
 ```bash
-./scripts/release.sh 0.2.0
+gh workflow run release -f version=0.2.0
 ```
 
-Runs the tests and the linter first, then bumps the manifest version, commits,
-tags and pushes. The release workflow builds the zip from the tag. A failure
-before the push leaves the working tree untouched.
+`version` also takes `major`, `minor` or `patch`. The release workflow runs the
+tests and the linter first, then bumps the manifest version and
+`STRATEGY_VERSION`, dates the changelog, commits, tags, pushes and publishes the
+release with the zip. A failure before the push changes nothing.
 
 <br><br>
 
