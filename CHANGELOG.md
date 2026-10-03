@@ -9,6 +9,10 @@
   Actions tab or with `gh workflow run release -f version=<version>`.
   `scripts/release.sh` is gone.
 
+- **`make release` starts the release workflow.** It releases a patch by
+  default; pass `VERSION=minor`, `VERSION=major` or `VERSION=1.2.3` for
+  anything else.
+
 - **CI calls the shared workflows in josa42/actions.** They moved there from
   josa42/gha-workflows.
 

@@ -1,4 +1,4 @@
-.PHONY: help venv install test lint lint-fix clean dev-up dev-down dev-logs dev-restart
+.PHONY: help venv install test lint lint-fix clean dev-up dev-down dev-logs dev-restart release
 
 PYTHON := $(shell command -v python3 || command -v python)
 VENV := venv
@@ -22,6 +22,9 @@ help:
 	@echo "  make lint     - Run linter"
 	@echo "  make lint-fix - Run linter and apply fixes"
 	@echo "  make clean    - Clean cache files"
+	@echo ""
+	@echo "Release:"
+	@echo "  make release [VERSION=patch] - Start the release workflow (1.2.3, major, minor or patch)"
 
 venv:
 	@if [ ! -d "$(VENV)" ]; then \
@@ -66,6 +69,12 @@ clean:
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	rm -rf $(VENV)
+
+VERSION ?= patch
+
+release:
+	gh workflow run release.yml -f version=$(VERSION)
+	@echo "Release workflow started. Follow it with: gh run watch"
 
 dev-up:
 	@echo "Starting Home Assistant..."
