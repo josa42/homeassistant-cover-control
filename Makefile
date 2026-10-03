@@ -24,7 +24,9 @@ help:
 	@echo "  make clean    - Clean cache files"
 	@echo ""
 	@echo "Release:"
-	@echo "  make release [VERSION=patch] - Start the release workflow (1.2.3, major, minor or patch)"
+	@echo "  make release  - Start the release workflow: minor if a feat commit"
+	@echo "                  landed since the last release, else patch."
+	@echo "                  Override with VERSION=1.2.3, major, minor or patch"
 
 venv:
 	@if [ ! -d "$(VENV)" ]; then \
@@ -70,10 +72,20 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	rm -rf $(VENV)
 
-VERSION ?= patch
-
 release:
-	gh workflow run release.yml -f version=$(VERSION)
+	@# The workflow releases origin/main, so that is what the bump is read from.
+	@git fetch --quiet --tags origin main
+	@version="$(VERSION)"; \
+	if [ -z "$$version" ]; then \
+		last=$$(git describe --tags --abbrev=0 --match 'v*' origin/main); \
+		if git log --format=%s "$$last..origin/main" | grep -qE '^feat(\(.*\))?!?:'; then \
+			version=minor; \
+		else \
+			version=patch; \
+		fi; \
+		echo "Releasing a $$version: commits since $$last decide it"; \
+	fi; \
+	gh workflow run release.yml -f version="$$version"
 	@echo "Release workflow started. Follow it with: gh run watch"
 
 dev-up:
