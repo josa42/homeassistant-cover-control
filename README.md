@@ -169,10 +169,11 @@ make release
 
 Releases a minor version when a `feat` commit landed since the last release,
 otherwise a patch. Pass `VERSION=1.2.3`, `major`, `minor` or `patch` to choose.
-The release workflow runs the tests and the linter first, then bumps the
-manifest version and `STRATEGY_VERSION`, dates the changelog, commits, tags,
-pushes and publishes the release with the zip. A failure before the push changes
-nothing.
+Push first: the workflow releases `origin/main`, so `make release` stops on
+unpushed or uncommitted changes. The release workflow runs the tests and the
+linter first, then bumps the manifest version and `STRATEGY_VERSION`, dates the
+changelog, commits, tags, pushes and publishes the release with the zip. A
+failure before the push changes nothing.
 
 <br><br>
 
