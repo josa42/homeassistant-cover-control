@@ -167,6 +167,7 @@ def test_overview_shows_every_status_attribute(tmp_path) -> None:
     import subprocess
     from types import SimpleNamespace
 
+    from custom_components.cover_control.const import Mode
     from custom_components.cover_control.sensor import HubStatusSensor
 
     node = shutil.which("node")
@@ -175,7 +176,7 @@ def test_overview_shows_every_status_attribute(tmp_path) -> None:
 
     coordinator = SimpleNamespace(
         runtimes={},
-        master_enabled=True,
+        mode=Mode.AUTO,
         entry=SimpleNamespace(entry_id="e", title="Cover Control"),
     )
     expected = set(HubStatusSensor(coordinator).extra_state_attributes)
@@ -352,7 +353,7 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
         )
 
     entities = {
-        "switch.cc_enabled": entity("switch.cc_enabled", "hub", "Cover Control Aktiviert", "enabled"),
+        "select.cc_mode": entity("select.cc_mode", "hub", "Cover Control Modus", "mode"),
         "button.cc_pause_all": entity(
             "button.cc_pause_all", "hub", "Cover Control Alle pausieren", "pause_all"
         ),
@@ -365,7 +366,7 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
         ),
         "button.az_pause": entity("button.az_pause", "az", "Arbeitszimmer Raffstore Pausieren", "pause"),
         "button.az_resume": entity("button.az_resume", "az", "Arbeitszimmer Raffstore Fortsetzen", "resume"),
-        "switch.az_enabled": entity("switch.az_enabled", "az", "Arbeitszimmer Raffstore Aktiviert", "enabled"),
+        "select.az_mode": entity("select.az_mode", "az", "Arbeitszimmer Raffstore Modus", "mode"),
         "binary_sensor.az_override": entity(
             "binary_sensor.az_override", "az", "Arbeitszimmer Raffstore Manueller Eingriff", "override_active"
         ),
@@ -399,12 +400,12 @@ def test_tiles_do_not_repeat_the_device_name(tmp_path) -> None:
     # they read as conditions in the cover's own view, and a tile beside them
     # would say the same thing twice.
     assert names == {
-        "switch.cc_enabled": "Aktiviert",
+        "select.cc_mode": "Modus",
         "button.cc_pause_all": "Alle pausieren",
         "button.cc_resume_all": "Alle fortsetzen",
         "button.az_pause": "Pausieren",
         "button.az_resume": "Fortsetzen",
-        "switch.az_enabled": "Aktiviert",
+        "select.az_mode": "Modus",
     }
 
 
@@ -459,11 +460,11 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
         # The hub needs an entity of its own: a device is only read as a cover
         # when the device it hangs off carries entities too.
         "entities": {
-            "switch.cc_enabled": {
-                "entity_id": "switch.cc_enabled",
+            "select.cc_mode": {
+                "entity_id": "select.cc_mode",
                 "platform": "cover_control",
                 "device_id": "hub",
-                "translation_key": "enabled",
+                "translation_key": "mode",
             },
             "binary_sensor.cc_storm": {
                 "entity_id": "binary_sensor.cc_storm",
@@ -487,9 +488,9 @@ def test_debug_view_surfaces_every_decision_attribute(tmp_path) -> None:
             },
         },
         "states": {
-            "switch.cc_enabled": {
-                "entity_id": "switch.cc_enabled",
-                "state": "on",
+            "select.cc_mode": {
+                "entity_id": "select.cc_mode",
+                "state": "auto",
                 "attributes": {},
             },
             "binary_sensor.cc_storm": {
@@ -576,9 +577,9 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
             "az": {"id": "az", "name": "Arbeitszimmer", "via_device_id": "hub"},
         },
         "entities": {
-            "switch.cc": {
-                "entity_id": "switch.cc", "platform": "cover_control",
-                "device_id": "hub", "translation_key": "enabled",
+            "select.cc": {
+                "entity_id": "select.cc", "platform": "cover_control",
+                "device_id": "hub", "translation_key": "mode",
             },
             decision: {
                 "entity_id": decision, "platform": "cover_control",
@@ -586,7 +587,7 @@ def test_the_debug_card_renders_without_gaps(tmp_path) -> None:
             },
         },
         "states": {
-            "switch.cc": {"entity_id": "switch.cc", "state": "on", "attributes": {}},
+            "select.cc": {"entity_id": "select.cc", "state": "auto", "attributes": {}},
             decision: {
                 "entity_id": decision, "state": "cooling",
                 "attributes": {"cover_entity": "cover.az", "window_open": False},
@@ -674,11 +675,11 @@ def test_every_cover_gets_its_own_view_linked_from_the_overview(tmp_path) -> Non
         entities.update(e)
         states.update(st)
         devices[device] = dev
-    entities["switch.cc"] = {
-        "entity_id": "switch.cc", "platform": "cover_control",
-        "device_id": "hub", "translation_key": "enabled",
+    entities["select.cc"] = {
+        "entity_id": "select.cc", "platform": "cover_control",
+        "device_id": "hub", "translation_key": "mode",
     }
-    states["switch.cc"] = {"entity_id": "switch.cc", "state": "on", "attributes": {}}
+    states["select.cc"] = {"entity_id": "select.cc", "state": "auto", "attributes": {}}
 
     hass = {"locale": {"language": "de"}, "devices": devices,
             "entities": entities, "states": states}
@@ -709,9 +710,13 @@ def test_every_cover_gets_its_own_view_linked_from_the_overview(tmp_path) -> Non
     assert sorted(set(links)) == sorted(paths), "every cover is reachable from the overview"
     assert sorted(links) == sorted(paths + paths), "a cover is missing from a half"
 
-    # And nothing to operate a single cover with sits on the overview.
+    # And nothing to operate a single cover with sits on the overview. The
+    # hub's mode selector does, and is not one.
     overview_cards = [c for s in overview["sections"] for c in s["cards"]]
-    assert not any(card.get("features") for card in overview_cards), (
+    assert not any(
+        card.get("features") and card["entity"].startswith("cover.")
+        for card in overview_cards
+    ), (
         "the overview grew a cover control again"
     )
 
@@ -736,12 +741,12 @@ def test_the_overview_splits_covers_by_whether_they_are_driven(tmp_path) -> None
 
     entities, states = {}, {}
     for slug, device in (("cc", "hub"), ("az", "az")):
-        entities[f"switch.{slug}_enabled"] = {
-            "entity_id": f"switch.{slug}_enabled", "platform": "cover_control",
-            "device_id": device, "translation_key": "enabled",
+        entities[f"select.{slug}_mode"] = {
+            "entity_id": f"select.{slug}_mode", "platform": "cover_control",
+            "device_id": device, "translation_key": "mode",
         }
-        states[f"switch.{slug}_enabled"] = {
-            "entity_id": f"switch.{slug}_enabled", "state": "on", "attributes": {},
+        states[f"select.{slug}_mode"] = {
+            "entity_id": f"select.{slug}_mode", "state": "auto", "attributes": {},
         }
     entities["sensor.az_decision"] = {
         "entity_id": "sensor.az_decision", "platform": "cover_control",

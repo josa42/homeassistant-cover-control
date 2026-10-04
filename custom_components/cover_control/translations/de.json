@@ -166,8 +166,14 @@
           "storm": {
             "name": "Sturmschutz"
           },
-          "enabled": {
-            "name": "Aktiviert"
+          "mode": {
+            "name": "Modus",
+            "state": {
+              "cool": "Kühlen",
+              "heat": "Heizen",
+              "auto": "Automatisch",
+              "off": "Aus"
+            }
           }
         }
       },
@@ -181,15 +187,14 @@
           "cooling": "Beschattung",
           "heating": "Sonnenheizen",
           "neutral": "Neutral",
-          "disabled": "Deaktiviert",
+          "disabled": "Aus",
           "unavailable": "Nicht verfügbar"
         },
         "state_attributes": {
           "reason_code": {
             "name": "Grund",
             "state": {
-              "master_disabled": "Global ausgeschaltet",
-              "cover_disabled": "Für diesen Rollladen ausgeschaltet",
+              "mode_off": "Modus ist aus",
               "cover_unavailable": "Rollladen nicht verfügbar",
               "storm_wind": "Sturmschutz",
               "window_is_open": "Fenster ist offen",
@@ -198,6 +203,7 @@
               "sun_not_on_window": "Sonne nicht auf dem Fenster",
               "not_bright": "Nicht hell genug",
               "temp_neutral": "Temperatur neutral",
+              "mode_excludes": "Vom Modus ausgeschlossen",
               "shading": "Beschattung",
               "solar_heating": "Sonnenheizen",
               "episode_ended": "Episode beendet",
@@ -211,11 +217,10 @@
             "state": {
               "awaiting_travel": "Wartet auf das Erreichen der Position",
               "command_failed": "Befehl fehlgeschlagen",
-              "cover_switch": "Rollladen-Schalter aus",
               "cover_unavailable": "Rollladen nicht verfügbar",
               "debounce": "Wartet vor dem Beenden",
               "manual_override": "Von Hand bewegt",
-              "master_switch": "Hauptschalter aus",
+              "mode_off": "Modus ist aus",
               "no_position_support": "Keine Positionssteuerung",
               "paused": "Von Hand pausiert",
               "sun_unavailable": "Sonnenstand nicht verfügbar",
@@ -227,6 +232,15 @@
           },
           "cover_entity": {
             "name": "Gesteuerter Rollladen"
+          },
+          "mode": {
+            "name": "Modus",
+            "state": {
+              "cool": "Kühlen",
+              "heat": "Heizen",
+              "auto": "Automatisch",
+              "off": "Aus"
+            }
           },
           "target_position": {
             "name": "Zielposition"
@@ -342,11 +356,26 @@
             "name": "Pausiert bis"
           }
         }
+      },
+      "storm_paused": {
+        "name": "Sturmschutz pausiert",
+        "state_attributes": {
+          "paused_until": {
+            "name": "Pausiert bis"
+          }
+        }
       }
     },
-    "switch": {
-      "enabled": {
-        "name": "Aktiviert"
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "hub": "Wie Hub",
+          "cool": "Kühlen",
+          "heat": "Heizen",
+          "auto": "Automatisch",
+          "off": "Aus"
+        }
       }
     },
     "button": {
@@ -361,6 +390,12 @@
       },
       "resume": {
         "name": "Fortsetzen"
+      },
+      "pause_storm": {
+        "name": "Sturmschutz pausieren"
+      },
+      "resume_storm": {
+        "name": "Sturmschutz fortsetzen"
       }
     }
   },

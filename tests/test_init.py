@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import device_registry as dr
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.helpers import entity_registry as er
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache,
+)
 
-from custom_components.cover_control.const import CONF_COOL_ABOVE
+from custom_components.cover_control.const import CONF_COOL_ABOVE, DOMAIN
 
 from .conftest import COVER
 
@@ -33,11 +37,13 @@ async def test_creates_hub_and_cover_entities(
     for entity_id in (
         "sensor.cover_control_status",
         "binary_sensor.cover_control_storm_protection",
-        "switch.cover_control_enabled",
+        "select.cover_control_mode",
         "button.cover_control_resume_all",
+        "button.cover_control_pause_storm_protection",
+        "binary_sensor.cover_control_storm_protection_paused",
         "sensor.raffstore_decision",
         "binary_sensor.raffstore_manual_override",
-        "switch.raffstore_enabled",
+        "select.raffstore_mode",
         "button.raffstore_resume",
     ):
         assert hass.states.get(entity_id) is not None, f"{entity_id} was not created"
@@ -130,37 +136,73 @@ async def test_decision_attributes_stay_flat(
     assert not any(isinstance(value, (dict, list)) for value in reported.values())
 
 
-async def test_master_switch_off_stops_control(
-    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
-) -> None:
-    set_scene()
-    await setup_entry(entry)
-
+async def select_mode(hass: HomeAssistant, entity_id: str, option: str) -> None:
     await hass.services.async_call(
-        "switch",
-        "turn_off",
-        {"entity_id": "switch.cover_control_enabled"},
+        "select",
+        "select_option",
+        {"entity_id": entity_id, "option": option},
         blocking=True,
     )
+    # The refresh a selector asks for is debounced; a second one inside the
+    # cooldown would otherwise wait for it.
+    await hass.config_entries.async_entries(DOMAIN)[0].runtime_data.async_refresh()
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.raffstore_decision").state == "disabled"
 
-
-async def test_per_cover_switch_off_stops_only_that_cover(
+async def test_hub_mode_off_stops_control(
     hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
 ) -> None:
     set_scene()
     await setup_entry(entry)
 
-    await hass.services.async_call(
-        "switch", "turn_off", {"entity_id": "switch.raffstore_enabled"}, blocking=True
-    )
-    await hass.async_block_till_done()
+    await select_mode(hass, "select.cover_control_mode", "off")
 
     decision = hass.states.get("sensor.raffstore_decision")
     assert decision.state == "disabled"
-    assert decision.attributes["reason_code"] == "cover_disabled"
+    assert decision.attributes["reason_code"] == "mode_off"
+    assert decision.attributes["mode"] == "off"
+
+
+async def test_a_cover_follows_the_hub_until_it_has_a_mode_of_its_own(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
+) -> None:
+    set_scene(position=50, tilt=45)  # already shaded, so nothing is in flight
+    await setup_entry(entry)
+    assert hass.states.get("select.raffstore_mode").state == "hub"
+
+    await select_mode(hass, "select.cover_control_mode", "heat")
+    runtime = next(iter(entry.runtime_data.runtimes.values()))
+    assert runtime.events[-1]["cause"] == "mode_changed", "ended at once"
+    assert runtime.events[-1]["position"] == 100
+    decision = hass.states.get("sensor.raffstore_decision")
+    assert decision.attributes["reason_code"] == "mode_excludes"
+
+    await select_mode(hass, "select.raffstore_mode", "cool")
+    assert hass.states.get("sensor.raffstore_decision").state == "cooling"
+
+
+async def test_the_enable_switches_carry_over_into_the_mode(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene
+) -> None:
+    """A cover switched off before the upgrade stays off after it."""
+    subentry_id = next(iter(entry.subentries))
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{subentry_id}_enabled",
+        config_entry=entry,
+        suggested_object_id="raffstore_enabled",
+    )
+    mock_restore_cache(hass, [State("switch.raffstore_enabled", "off")])
+    set_scene()
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("select.raffstore_mode").state == "off"
+    assert hass.states.get("select.cover_control_mode").state == "auto"
+    assert registry.async_get("switch.raffstore_enabled") is None, "left behind"
 
 
 async def test_storm_retracts_and_outranks_shading(

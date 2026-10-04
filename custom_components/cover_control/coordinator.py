@@ -49,6 +49,7 @@ from .const import (
     HOLDING_INTENTS,
     MANUAL_GROUP,
     MIN_MOVEMENT_DELTA,
+    MODE_FROM_HUB,
     NOTIFY_WINDOW,
     PAUSE_FALLBACK,
     SETTLE_TIME,
@@ -58,6 +59,7 @@ from .const import (
     TICK_INTERVAL,
     Cause,
     Intent,
+    Mode,
 )
 from .discovery import async_refresh_issue
 from .engine import EpisodeState, Inputs, evaluate, released_from_pause
@@ -95,7 +97,8 @@ class CoverRuntime:
         self.config: dict[str, Any] = dict(subentry.data)
         self.cover_entity: str = self.config["cover_entity"]
         self.state = EpisodeState()
-        self.enabled = True
+        #: A :class:`Mode`, or MODE_FROM_HUB to follow the hub's.
+        self.mode: str = MODE_FROM_HUB
         self.dry_run = False
         self.last_signature: tuple | None = None
         self.last_notified_destination: tuple | None = None
@@ -313,7 +316,10 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
         )
         self.entry = entry
         self.hub_device_id: str | None = None
-        self.master_enabled = True
+        self.mode = Mode.AUTO
+        #: Set by the hub's pause button for storm protection, and like a
+        #: cover's pause it runs to the next sunrise.
+        self.storm_paused_until: datetime | None = None
         self.runtimes: dict[str, CoverRuntime] = {}
         self._unsub_tracker = None
         self._forecast_cache: dict[str, tuple[datetime, float | None]] = {}
@@ -325,6 +331,16 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
     @property
     def hub_config(self) -> dict[str, Any]:
         return {**self.entry.data, **self.entry.options}
+
+    def mode_for(self, runtime: CoverRuntime) -> Mode:
+        """The mode in force for one cover: its own, or the hub's it follows."""
+        return self.mode if runtime.mode == MODE_FROM_HUB else Mode(runtime.mode)
+
+    @property
+    def storm_paused(self) -> bool:
+        """Whether storm protection is paused right now, judged by the clock."""
+        until = self.storm_paused_until
+        return until is not None and dt_util.utcnow() < until
 
     # --- wiring -------------------------------------------------------------
 
@@ -685,6 +701,8 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
     async def _async_update_data(self) -> dict[str, Decision]:
         self.load_subentries()
         sun_track = self._sun_track(dt_util.utcnow())
+        if self.storm_paused_until is not None and not self.storm_paused:
+            self.storm_paused_until = None
         decisions: dict[str, Decision] = {}
         changes: list[tuple[CoverRuntime, Decision]] = []
         for runtime in self.runtimes.values():
@@ -699,8 +717,8 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
                 config,
                 runtime.state,
                 runtime.cover_entity,
-                self.master_enabled,
-                runtime.enabled,
+                self.mode_for(runtime),
+                self.storm_paused,
             )
             runtime.state = state
             decision = await self._apply(runtime, decision, inputs)
@@ -1119,13 +1137,30 @@ class CoverControlCoordinator(DataUpdateCoordinator[dict[str, Decision]]):
             runtime.record_event("resumed", now)
         await self.async_request_refresh()
 
-    async def async_set_master(self, enabled: bool) -> None:
-        self.master_enabled = enabled
+    async def async_set_mode(self, mode: Mode) -> None:
+        """Set the hub's mode, which every cover following the hub takes."""
+        self.mode = mode
         await self.async_request_refresh()
 
-    async def async_set_cover_enabled(self, subentry_id: str, enabled: bool) -> None:
+    async def async_set_cover_mode(self, subentry_id: str, mode: str) -> None:
+        """Set one cover's mode, or MODE_FROM_HUB to follow the hub again."""
         runtime = self.runtimes.get(subentry_id)
         if runtime is None:
             return
-        runtime.enabled = enabled
+        runtime.mode = mode
+        await self.async_request_refresh()
+
+    async def async_pause_storm(self) -> None:
+        """Hold storm protection back until the next sunrise."""
+        self.storm_paused_until = self.next_sunrise()
+        await self.async_request_refresh()
+
+    async def async_resume_storm(self) -> None:
+        """Hand storm protection back at once."""
+        self.storm_paused_until = None
+        await self.async_request_refresh()
+
+    async def async_set_storm_paused_until(self, until: datetime | None) -> None:
+        """Set the storm pause deadline directly, for restoring it after a restart."""
+        self.storm_paused_until = until
         await self.async_request_refresh()

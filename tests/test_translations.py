@@ -181,11 +181,12 @@ def test_weather_conditions_are_translated_everywhere(language: str) -> None:
 def test_status_sensor_attributes_and_unit_are_translated(language: str) -> None:
     from types import SimpleNamespace
 
+    from custom_components.cover_control.const import Mode
     from custom_components.cover_control.sensor import HubStatusSensor
 
     coordinator = SimpleNamespace(
         runtimes={},
-        master_enabled=True,
+        mode=Mode.AUTO,
         entry=SimpleNamespace(entry_id="e", title="Cover Control"),
         async_add_listener=lambda *a, **k: None,
     )

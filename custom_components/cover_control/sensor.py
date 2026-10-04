@@ -66,7 +66,7 @@ class HubStatusSensor(HubEntity, SensorEntity):
             # pause. Counted as what it is, and only once.
             "paused": sum(1 for r in runtimes if r.is_paused and not r.state.override),
             "storm": sum(1 for r in runtimes if r.state.storm_latched),
-            "enabled": self.coordinator.master_enabled,
+            "mode": self.coordinator.mode.value,
         }
 
 

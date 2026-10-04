@@ -7,12 +7,13 @@ order is fixed:
 
 | Priority | Intent | What happens |
 | --- | --- | --- |
-| 1 | Storm | Wind above the threshold. Retracts, closes or ignores, per cover. Outranks everything, including a manual override. |
-| 2 | Window open | The cover is left alone while the window contact reports open. |
-| 3 | Paused | Paused with the Pause button. Hands off until the next sunrise. |
-| 4 | Manual override | Someone moved it by hand. Hands off until the next sunrise. |
-| 5 | Cooling / heating | Shades against solar gain, or opens to let the sun warm the room. |
-| 6 | Neutral | Nothing to do. The cover is not touched. |
+| 1 | Storm | Wind above the threshold. Retracts, closes or ignores, per cover. Outranks everything, including the mode being off, a pause and a manual override. Only pausing storm protection itself holds it back. |
+| 2 | Off | The mode is off. The cover is left alone. |
+| 3 | Window open | The cover is left alone while the window contact reports open. |
+| 4 | Paused | Paused with the Pause button. Hands off until the next sunrise. |
+| 5 | Manual override | Someone moved it by hand. Hands off until the next sunrise. |
+| 6 | Cooling / heating | Shades against solar gain, or opens to let the sun warm the room, as far as the mode allows. |
+| 7 | Neutral | Nothing to do. The cover is not touched. |
 
 Morning opening, night mode, ventilation positions and notifications are
 deliberately **not** included. Those are schedule shaped and vary per
@@ -138,6 +139,36 @@ shading at 19 °C under a 20 °C threshold says why.
 
 <br><br>
 
+## Mode
+
+The mode works like a thermostat's, and uses the same names:
+
+| Mode | What happens |
+| --- | --- |
+| Cool | Shades only. Solar heating is ruled out. |
+| Heat | Opens to let the sun warm the room only. Shading is ruled out. |
+| Auto | Both, whichever the temperature calls for. The default. |
+| Off | Nothing. The cover is left where it is. |
+
+The mode rules out a direction, it does not force one. In Cool a cover still
+only shades when the temperature calls for it. When it calls for the direction
+the mode rules out, the decision says so with `mode_excludes` rather than
+`temp_neutral`, and the temperature line in the debug view still shows the
+reading that called for it.
+
+The hub has a mode, and each cover has one that is **Same as hub** until it is
+set. A cover set to a mode of its own keeps it whatever the hub is switched to.
+
+Changing the mode while an episode runs that the new mode rules out ends the
+episode at once and opens the cover, with no debounce: a choice is not a
+passing cloud. Switching to Off does not end the episode; it leaves the cover
+where it is, and switched back on later, an episode that no longer applies ends
+the usual way.
+
+Storm protection is not part of the mode and runs in every mode, Off included.
+
+<br><br>
+
 ## The debug dashboard
 
 The generated dashboard's debug view lays out the decision record per cover: the
@@ -175,7 +206,7 @@ for the rest of an episode says so.
 Every movement in both halves of the list carries a few words on what caused
 it: the sun arriving on the glass, the sun reaching deeper or easing off, the
 sun leaving, a sky that is no longer bright, a temperature that no longer calls
-for it, solar heating or a storm. It is a coarser answer than the decision's
+for it, solar heating, a change of mode or a storm. It is a coarser answer than the decision's
 reason code on purpose, because a line in a list of a day has room for four
 words. A pause, a resume and a manual takeover carry none, since the entry
 already says what happened.
@@ -283,6 +314,18 @@ one pressed at 23:00 runs to that same morning.
   after sunrise. A new episode begins once the sun and temperature call for one.
 
 A movement by hand pauses the cover in the same way, and ends the same way.
+
+### Pausing storm protection
+
+**Pause storm protection** on the hub holds storm protection back for every
+cover until the next sunrise, and **Resume storm protection** hands it back.
+It is the only thing that does: neither the mode, a cover's pause nor a
+movement by hand stops a storm from moving a cover.
+
+- The storm is still tracked while protection is paused. A pause that ends in
+  the middle of a storm, by running out or by pressing resume, protects the
+  covers at once rather than waiting for the next gust.
+- The pause survives a restart of Home Assistant.
 
 <br><br>
 

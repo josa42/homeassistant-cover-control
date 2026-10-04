@@ -166,8 +166,14 @@
           "storm": {
             "name": "Storm protection"
           },
-          "enabled": {
-            "name": "Enabled"
+          "mode": {
+            "name": "Mode",
+            "state": {
+              "cool": "Cool",
+              "heat": "Heat",
+              "auto": "Auto",
+              "off": "Off"
+            }
           }
         }
       },
@@ -181,15 +187,14 @@
           "cooling": "Shading",
           "heating": "Solar heating",
           "neutral": "Neutral",
-          "disabled": "Disabled",
+          "disabled": "Off",
           "unavailable": "Unavailable"
         },
         "state_attributes": {
           "reason_code": {
             "name": "Reason",
             "state": {
-              "master_disabled": "Switched off globally",
-              "cover_disabled": "Switched off for this cover",
+              "mode_off": "Mode is off",
               "cover_unavailable": "Cover unavailable",
               "storm_wind": "Storm protection",
               "window_is_open": "Window is open",
@@ -198,6 +203,7 @@
               "sun_not_on_window": "Sun not on the window",
               "not_bright": "Not bright enough",
               "temp_neutral": "Temperature neutral",
+              "mode_excludes": "Ruled out by the mode",
               "shading": "Shading",
               "solar_heating": "Solar heating",
               "episode_ended": "Episode ended",
@@ -211,11 +217,10 @@
             "state": {
               "awaiting_travel": "Waiting for the cover to arrive",
               "command_failed": "Command failed",
-              "cover_switch": "Cover switch off",
               "cover_unavailable": "Cover unavailable",
               "debounce": "Waiting before ending",
               "manual_override": "Moved by hand",
-              "master_switch": "Master switch off",
+              "mode_off": "Mode is off",
               "no_position_support": "No position support",
               "paused": "Paused by hand",
               "sun_unavailable": "Sun position unavailable",
@@ -227,6 +232,15 @@
           },
           "cover_entity": {
             "name": "Controlled cover"
+          },
+          "mode": {
+            "name": "Mode",
+            "state": {
+              "cool": "Cool",
+              "heat": "Heat",
+              "auto": "Auto",
+              "off": "Off"
+            }
           },
           "target_position": {
             "name": "Target position"
@@ -342,11 +356,26 @@
             "name": "Paused until"
           }
         }
+      },
+      "storm_paused": {
+        "name": "Storm protection paused",
+        "state_attributes": {
+          "paused_until": {
+            "name": "Paused until"
+          }
+        }
       }
     },
-    "switch": {
-      "enabled": {
-        "name": "Enabled"
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "hub": "Same as hub",
+          "cool": "Cool",
+          "heat": "Heat",
+          "auto": "Auto",
+          "off": "Off"
+        }
       }
     },
     "button": {
@@ -361,6 +390,12 @@
       },
       "resume": {
         "name": "Resume"
+      },
+      "pause_storm": {
+        "name": "Pause storm protection"
+      },
+      "resume_storm": {
+        "name": "Resume storm protection"
       }
     }
   },

@@ -16,12 +16,17 @@ async def async_get_config_entry_diagnostics(
     coordinator = entry.runtime_data
     return {
         "hub": coordinator.hub_config,
-        "master_enabled": coordinator.master_enabled,
+        "mode": coordinator.mode,
+        "storm_paused_until": (
+            coordinator.storm_paused_until.isoformat()
+            if coordinator.storm_paused_until
+            else None
+        ),
         "covers": {
             runtime.cover_entity: {
                 "title": runtime.title,
                 "config": runtime.config,
-                "enabled": runtime.enabled,
+                "mode": runtime.mode,
                 "episode": {
                     "active": runtime.state.active,
                     "intent": runtime.state.intent,

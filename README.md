@@ -96,12 +96,18 @@ Dry-run lines are prefixed `[Dry run]`.
 
 | Device | Entities |
 | --- | --- |
-| Central | Enable switch, pause-all and resume-all buttons, storm indicator, status sensor |
-| Each cover | Enable switch, decision sensor, manual-override and paused indicators, pause and resume buttons |
+| Central | Mode selector, pause-all and resume-all buttons, storm indicator, storm-pause buttons and indicator, status sensor |
+| Each cover | Mode selector, decision sensor, manual-override and paused indicators, pause and resume buttons |
+
+**Mode** works like a thermostat's: **Cool** only shades, **Heat** only opens
+to let the sun warm the room, **Auto** does both and **Off** leaves the cover
+alone. A cover follows the hub's mode until it is given its own. Storm
+protection runs in every mode, Off included.
 
 **Pause** leaves a cover alone until the next sunrise, and **Resume** hands it
-back straight away. Buttons are only available when pressing them does
-something.
+back straight away. **Pause storm protection** does the same for storm
+protection on every cover, which nothing else holds back. Buttons are only
+available when pressing them does something.
 
 The decision sensor carries the current intent as its state, plus the reason
 code, the target position and the readings behind it.

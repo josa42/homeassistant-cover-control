@@ -107,6 +107,25 @@ class StormAction(StrEnum):
     IGNORE = "ignore"
 
 
+class Mode(StrEnum):
+    """Which way the sun may be used, named after a thermostat's modes.
+
+    The temperature thresholds still decide whether a cover acts. The mode
+    only rules out a direction: in cool a cold sunny morning does nothing,
+    and in heat a hot afternoon does nothing. Storm protection is not part
+    of it and runs in every mode, off included.
+    """
+
+    COOL = "cool"
+    HEAT = "heat"
+    AUTO = "auto"
+    OFF = "off"
+
+
+#: What a cover's own mode selector holds when it follows the hub.
+MODE_FROM_HUB = "hub"
+
+
 class Intent(StrEnum):
     """The state machine's intent, highest priority first."""
 
@@ -137,6 +156,8 @@ class Cause(StrEnum):
     NOT_BRIGHT = "not_bright"
     TEMP_NEUTRAL = "temp_neutral"
     SUN_WARMS = "sun_warms"
+    #: The mode was changed to one that rules out the running episode.
+    MODE_CHANGED = "mode_changed"
     STORM = "storm"
     #: A movement by hand, which leaves the cover where it was put until the
     #: next sunrise. Carried by the movement that did it.
@@ -164,8 +185,7 @@ class Reason(StrEnum):
     automations can match on the code and never on translated prose.
     """
 
-    MASTER_DISABLED = "master_disabled"
-    COVER_DISABLED = "cover_disabled"
+    MODE_OFF = "mode_off"
     COVER_UNAVAILABLE = "cover_unavailable"
     STORM_WIND = "storm_wind"
     WINDOW_IS_OPEN = "window_is_open"
@@ -174,6 +194,9 @@ class Reason(StrEnum):
     SUN_NOT_ON_WINDOW = "sun_not_on_window"
     NOT_BRIGHT = "not_bright"
     TEMP_NEUTRAL = "temp_neutral"
+    #: The temperature calls for shading or solar heating, and the mode rules
+    #: that direction out.
+    MODE_EXCLUDES = "mode_excludes"
     SHADING = "shading"
     SOLAR_HEATING = "solar_heating"
     EPISODE_ENDED = "episode_ended"

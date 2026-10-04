@@ -18,6 +18,9 @@ RESUME = "button.raffstore_resume"
 PAUSE_ALL = "button.cover_control_pause_all"
 RESUME_ALL = "button.cover_control_resume_all"
 PAUSED = "binary_sensor.raffstore_paused"
+PAUSE_STORM = "button.cover_control_pause_storm_protection"
+RESUME_STORM = "button.cover_control_resume_storm_protection"
+STORM_PAUSED = "binary_sensor.cover_control_storm_protection_paused"
 
 
 def runtime(entry: MockConfigEntry):
@@ -178,3 +181,66 @@ async def test_an_expired_pause_is_not_restored(
 
     assert not runtime(entry).is_paused
     assert hass.states.get("sensor.raffstore_decision").state == "cooling"
+
+
+async def test_storm_protection_pauses_until_the_next_sunrise(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, cover_calls
+) -> None:
+    set_scene(position=50)
+    await setup_entry(entry)
+    sunrise = dt_util.utcnow() + timedelta(hours=9)
+    set_sunrise(hass, sunrise)
+    assert hass.states.get(RESUME_STORM).state == "unavailable"
+
+    await press(hass, entry, PAUSE_STORM)
+
+    assert entry.runtime_data.storm_paused_until == sunrise
+    assert hass.states.get(STORM_PAUSED).state == "on"
+    assert hass.states.get(STORM_PAUSED).attributes["paused_until"] == sunrise.isoformat()
+    assert hass.states.get(PAUSE_STORM).state == "unavailable"
+
+    cover_calls["position"].clear()
+    set_scene(position=50, wind=55.0)
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    decision = hass.states.get("sensor.raffstore_decision")
+    assert decision.state != "storm"
+    assert all(call.data["position"] != 100 for call in cover_calls["position"])
+
+    await press(hass, entry, RESUME_STORM)
+
+    assert hass.states.get(STORM_PAUSED).state == "off"
+    assert hass.states.get("sensor.raffstore_decision").state == "storm"
+
+
+async def test_storm_protection_outranks_a_cover_pause(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry
+) -> None:
+    set_scene(position=50)
+    await setup_entry(entry)
+    set_sunrise(hass, dt_util.utcnow() + timedelta(hours=9))
+    await press(hass, entry, PAUSE_ALL)
+
+    set_scene(position=50, wind=55.0)
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.raffstore_decision").state == "storm"
+
+
+async def test_a_storm_pause_survives_a_restart(
+    hass: HomeAssistant, entry: MockConfigEntry, set_scene
+) -> None:
+    until = dt_util.utcnow() + timedelta(hours=6)
+    mock_restore_cache(
+        hass, [State(STORM_PAUSED, "on", {"paused_until": until.isoformat()})]
+    )
+    set_scene(position=50, wind=55.0)
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.storm_paused
+    assert hass.states.get("sensor.raffstore_decision").state != "storm"

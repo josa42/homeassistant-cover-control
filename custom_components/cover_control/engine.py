@@ -47,6 +47,7 @@ from .const import (
     CoverType,
     Facade,
     Intent,
+    Mode,
     Reason,
     StormAction,
 )
@@ -248,10 +249,14 @@ def evaluate(
     config: EffectiveConfig,
     state: EpisodeState,
     cover_entity: str,
-    master_enabled: bool,
-    cover_enabled: bool,
+    mode: Mode = Mode.AUTO,
+    storm_paused: bool = False,
 ) -> tuple[Decision, EpisodeState]:
-    """Evaluate one cover and return its decision plus the new state."""
+    """Evaluate one cover and return its decision plus the new state.
+
+    ``mode`` is the one in force for this cover, already resolved against the
+    hub. ``storm_paused`` is whether storm protection is paused right now.
+    """
     gates: list[Gate] = []
     brightness: dict[str, Any] = {}
     #: Filled once the gates that are not the sun have been judged, and read by
@@ -295,6 +300,7 @@ def evaluate(
             timestamp=inputs.now,
             plan=planned,
             cover_entity=cover_entity,
+            mode=mode,
             intent=intent,
             reason=reason,
             message=message,
@@ -336,7 +342,7 @@ def evaluate(
         else None
     )
 
-    # --- availability and enable switches ---------------------------------
+    # --- availability --------------------------------------------------------
     if not inputs.cover_available:
         gates.append(Gate("cover_available", False, "cover entity is unavailable"))
         return decide(
@@ -347,27 +353,10 @@ def evaluate(
         )
     gates.append(Gate("cover_available", True))
 
-    if not master_enabled:
-        gates.append(Gate("master_enabled", False, "hub switch is off"))
-        return decide(
-            Intent.DISABLED,
-            Reason.MASTER_DISABLED,
-            "Cover Control is switched off globally.",
-            blocked_by="master_switch",
-        )
-    gates.append(Gate("master_enabled", True))
-
-    if not cover_enabled:
-        gates.append(Gate("cover_enabled", False, "per-cover switch is off"))
-        return decide(
-            Intent.DISABLED,
-            Reason.COVER_DISABLED,
-            "Control for this cover is switched off.",
-            blocked_by="cover_switch",
-        )
-    gates.append(Gate("cover_enabled", True))
-
-    # --- storm, which outranks everything including override ---------------
+    # --- storm, which outranks everything: the mode, a pause, an override ---
+    # Only pausing storm protection itself holds it back. The latch is still
+    # tracked while it is paused, so a pause that runs out in the middle of a
+    # storm protects the cover at once instead of waiting for the next gust.
     storm_action = StormAction(_cover_setting(config, CONF_STORM_ACTION))
     threshold = float(config.get(CONF_WIND_THRESHOLD))
     release = float(config.get(CONF_WIND_RELEASE))
@@ -382,11 +371,12 @@ def evaluate(
         Gate(
             "storm",
             storm_latched,
-            f"wind {wind} km/h vs trigger {threshold} / release {release}",
+            f"wind {wind} km/h vs trigger {threshold} / release {release}"
+            + ("; storm protection is paused" if storm_paused else ""),
         )
     )
 
-    if storm_latched and storm_action is not StormAction.IGNORE:
+    if storm_latched and storm_action is not StormAction.IGNORE and not storm_paused:
         target = 100 if storm_action is StormAction.RETRACT_UP else 0
         new_state = EpisodeState(
             active=False,
@@ -411,6 +401,29 @@ def evaluate(
         )
 
     state = replace(state, storm_latched=storm_latched)
+
+    # --- mode -----------------------------------------------------------------
+    # Off leaves the cover alone, as the enable switches it replaces did. The
+    # episode is kept as it stands: switched back on later, an episode that no
+    # longer applies ends the usual way and opens the cover.
+    if mode is Mode.OFF:
+        gates.append(Gate("mode", False, "mode is off"))
+        return decide(
+            Intent.DISABLED,
+            Reason.MODE_OFF,
+            "Mode is off; only storm protection acts on this cover.",
+            blocked_by="mode_off",
+        )
+    cool_allowed = mode in (Mode.COOL, Mode.AUTO)
+    heat_allowed = mode in (Mode.HEAT, Mode.AUTO)
+    gates.append(
+        Gate(
+            "mode",
+            True,
+            f"mode {mode}: shading {'allowed' if cool_allowed else 'ruled out'}, "
+            f"solar heating {'allowed' if heat_allowed else 'ruled out'}",
+        )
+    )
 
     # --- window contact -----------------------------------------------------
     shade_with_open = bool(_cover_setting(config, CONF_SHADE_WINDOW_OPEN))
@@ -537,18 +550,21 @@ def evaluate(
     indoor_confirms_cool = (
         inputs.indoor_temp is None or inputs.indoor_temp > indoor_cool_at
     )
-    wants_cooling = (outdoor_hot or forecast_hot) and indoor_confirms_cool
+    calls_for_cooling = (outdoor_hot or forecast_hot) and indoor_confirms_cool
 
     outdoor_cold = inputs.outdoor_temp is not None and inputs.outdoor_temp < heat_at
     indoor_confirms_heat = (
         inputs.indoor_temp is None or inputs.indoor_temp < indoor_heat_at
     )
-    wants_heating = outdoor_cold and indoor_confirms_heat
+    calls_for_heating = outdoor_cold and indoor_confirms_heat
 
+    # The gate reports what the temperature calls for, whatever the mode says
+    # about it: the mode has a gate of its own, and a reader asking why a hot
+    # afternoon is not shaded wants to see that the heat was noticed.
     gates.append(
         Gate(
             "temperature",
-            wants_cooling or wants_heating,
+            calls_for_cooling or calls_for_heating,
             f"outdoor {inputs.outdoor_temp} / forecast max {inputs.forecast_max} "
             f"vs cool>{cool_at} heat<{heat_at}; "
             f"indoor {inputs.indoor_temp} vs cool>{indoor_cool_at} "
@@ -556,6 +572,9 @@ def evaluate(
             + (f"; held by {hysteresis} C" if holding_cool or holding_heat else ""),
         )
     )
+
+    wants_cooling = calls_for_cooling and cool_allowed
+    wants_heating = calls_for_heating and heat_allowed
 
     # Everything but the sun has now been judged, which is exactly what the
     # plan holds still: it asks what the rest of the day looks like if the
@@ -614,8 +633,13 @@ def evaluate(
         # An episode is running but the gates no longer support it. Hold the
         # cover until the gates have been false long enough to be believed;
         # a passing cloud or a curtailing inverter must not end the episode.
+        # A mode that rules the episode out is no passing cloud: somebody
+        # chose it, and waiting would only delay what they asked for.
+        ruled_out = (state.intent is Intent.COOLING and not cool_allowed) or (
+            state.intent is Intent.HEATING and not heat_allowed
+        )
         since = state.gate_false_since or inputs.now
-        if inputs.now - since < GATE_DEBOUNCE:
+        if not ruled_out and inputs.now - since < GATE_DEBOUNCE:
             state = replace(state, gate_false_since=since)
             failing = (
                 "sun left the window"
@@ -648,8 +672,13 @@ def evaluate(
         return decide(
             Intent.NEUTRAL,
             Reason.EPISODE_ENDED,
-            "Episode ended, opening fully and releasing any manual override.",
-            cause=Cause.SUN_LEFT
+            f"Mode {mode} rules out this episode; ending it at once, opening "
+            "fully and releasing any manual override."
+            if ruled_out
+            else "Episode ended, opening fully and releasing any manual override.",
+            cause=Cause.MODE_CHANGED
+            if ruled_out
+            else Cause.SUN_LEFT
             if not on_window
             else Cause.NOT_BRIGHT
             if not bright
@@ -675,6 +704,13 @@ def evaluate(
             reason, message = Reason.SUN_NOT_ON_WINDOW, "Sun is not on this window."
         elif not bright:
             reason, message = Reason.NOT_BRIGHT, "Not bright enough to act."
+        elif calls_for_cooling or calls_for_heating:
+            reason, message = (
+                Reason.MODE_EXCLUDES,
+                f"Temperature calls for "
+                f"{'shading' if calls_for_cooling else 'solar heating'}, "
+                f"but mode {mode} rules it out.",
+            )
         else:
             reason, message = (
                 Reason.TEMP_NEUTRAL,

@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A mode, like a thermostat's: Cool, Heat, Auto and Off.** Cool only
+  shades, Heat only opens to let the sun warm the room, Auto does both, as
+  before, and Off leaves the cover alone. It is set on the hub, and a cover
+  follows it until it is given a mode of its own. Changing to a mode that
+  rules out the running episode ends it at once and opens the cover.
+
+- **Storm protection can be paused.** Pause storm protection on the hub holds
+  it back for every cover until the next sunrise, the same way a cover's
+  pause does, and Resume storm protection hands it back.
+
+### Changed
+
+- **The mode selectors replace the enable switches.** Off is what switching
+  off used to be. A switch that was off when you upgrade carries over as the
+  mode Off, and the old switch entities are removed. Automations that used
+  `switch.*_enabled` need to set the mode with `select.select_option` instead.
+  The reason codes `master_disabled` and `cover_disabled` are now
+  `mode_off`.
+
+- **Storm protection outranks everything, the mode being off included.** It
+  used to stop with the enable switches.
+
 ## 1.15.0 - 2026-10-03
 
 ### Changed

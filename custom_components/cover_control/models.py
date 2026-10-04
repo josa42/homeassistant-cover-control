@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from .const import DEFAULTS, OVERRIDABLE, Cause, Intent, Reason
+from .const import DEFAULTS, OVERRIDABLE, Cause, Intent, Mode, Reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +87,8 @@ class Decision:
     intent: Intent
     reason: Reason
     message: str
+    #: The mode in force for this cover, resolved against the hub.
+    mode: Mode | None = None
     target_position: int | None = None
     target_tilt: int | None = None
     #: A command was warranted, whether or not one was actually sent. In dry
@@ -130,6 +132,7 @@ class Decision:
             "reason_code": str(self.reason),
             "message": self.message,
             "cover_entity": self.cover_entity,
+            "mode": None if self.mode is None else str(self.mode),
             "target_position": self.target_position,
             "target_tilt": self.target_tilt,
             "would_move": self.would_move,
@@ -186,6 +189,7 @@ class Decision:
             "intent": str(self.intent),
             "reason_code": str(self.reason),
             "message": self.message,
+            "mode": None if self.mode is None else str(self.mode),
             "target_position": self.target_position,
             "target_tilt": self.target_tilt,
             "would_move": self.would_move,

@@ -46,6 +46,7 @@ const LABELS = {
       not_bright: "no longer bright",
       temp_neutral: "no longer warm enough",
       sun_warms: "sun warms the room",
+      mode_changed: "mode changed",
       storm: "storm",
       handed_over: "left here until sunrise",
     },
@@ -75,7 +76,9 @@ const LABELS = {
     cStorm: "No storm",
     cPaused: "Not paused",
     cOverride: "Not moved by hand",
-    cEnabled: "Switched on",
+    cMode: "Mode",
+    modeWords: { cool: "Cool", heat: "Heat", auto: "Auto", off: "Off" },
+    stormPaused: "storm protection paused",
     reaches: "reaches",
     notOnThisWindow: "not on this window",
     intoRoom: "into the room",
@@ -100,7 +103,7 @@ const LABELS = {
     coversOverridden: "Manually overridden",
     coversPaused: "Paused",
     coversStorm: "Storm protection",
-    enabled: "Enabled",
+    mode: "Mode",
     dryRunNotice: "**Dry run.** Nothing is being moved; this is what would happen.",
   },
   de: {
@@ -134,6 +137,7 @@ const LABELS = {
       not_bright: "nicht mehr hell genug",
       temp_neutral: "nicht mehr warm genug",
       sun_warms: "Sonne wärmt den Raum",
+      mode_changed: "Modus geändert",
       storm: "Sturm",
       handed_over: "bleibt bis Sonnenaufgang",
     },
@@ -178,7 +182,9 @@ const LABELS = {
     cStorm: "Kein Sturm",
     cPaused: "Nicht pausiert",
     cOverride: "Nicht von Hand bewegt",
-    cEnabled: "Eingeschaltet",
+    cMode: "Modus",
+    modeWords: { cool: "Kühlen", heat: "Heizen", auto: "Automatisch", off: "Aus" },
+    stormPaused: "Sturmschutz pausiert",
     reaches: "reicht",
     notOnThisWindow: "nicht auf diesem Fenster",
     intoRoom: "in den Raum",
@@ -203,7 +209,7 @@ const LABELS = {
     coversOverridden: "Manueller Eingriff",
     coversPaused: "Pausiert",
     coversStorm: "Sturmschutz",
-    enabled: "Aktiviert",
+    mode: "Modus",
     dryRunNotice: "**Testlauf.** Es wird nichts bewegt; das ist, was passieren würde.",
   },
 };
@@ -294,13 +300,13 @@ function collect(hass) {
     const state = decision ? hass.states[decision.entity] : undefined;
     cover.coverEntity = state && state.attributes.cover_entity;
     cover.dryRun = Boolean(state && state.attributes.dry_run);
-    // Four of the conditions are entities in their own right rather than
+    // Some of the conditions are entities in their own right rather than
     // anything the decision record carries, so the debug view reads them
-    // straight from the switches and sensors that hold them.
+    // straight from the sensors that hold them.
     cover.pausedEntity = cover.entities.paused;
     cover.overrideEntity = cover.entities.override_active;
-    cover.enabledEntity = cover.entities.enabled;
     cover.stormEntity = hub && hub.entities.storm_active;
+    cover.stormPausedEntity = hub && hub.entities.storm_paused;
     cover.todayEntity = cover.entities.today;
     cover.hasWindowSensor =
       state != null && state.attributes.window_open !== undefined
@@ -332,7 +338,7 @@ function statusRows(entity, t) {
     ["overridden", t.coversOverridden],
     ["paused", t.coversPaused],
     ["storm", t.coversStorm],
-    ["enabled", t.enabled],
+    ["mode", t.mode],
   ].map(([attribute, name]) => ({ type: "attribute", entity, attribute, name }));
 }
 
@@ -346,6 +352,20 @@ function statusRows(entity, t) {
 function criterion(label, test, detail) {
   const mark = `{% if ${test} %}\u2705{% else %}\u274c{% endif %}`;
   return `- ${mark} ${label}${detail ? " \u2014 " + detail : ""}`;
+}
+
+/** The mode in the reader's language; state_attr gives the raw id. */
+function modeWord(entity, t) {
+  const raw = attrOf(entity, "mode");
+  const pairs = Object.entries(t.modeWords)
+    .map(([id, word]) => `'${id}': '${word}'`)
+    .join(", ");
+  return `{{ {${pairs}}.get(${raw}, ${raw}) }}`;
+}
+
+/** A mode selector's tile, with its options right on it. */
+function modeTile(picked) {
+  return { type: "tile", ...picked, features: [{ type: "select-options" }] };
 }
 
 /** The weather condition in the reader's language; state_attr gives the raw id. */
@@ -541,7 +561,7 @@ function viewPath(name, taken) {
  * out for it: shading, letting the winter sun in, and getting out of a storm.
  *
  * The rest are covers it is not driving: open because nothing calls for
- * cover, or switched off, paused, moved by hand, or waiting on a window.
+ * cover, or its mode is off, paused, moved by hand, or waiting on a window.
  */
 const DRIVEN = ["storm", "cooling", "heating"];
 
@@ -549,7 +569,7 @@ const DRIVEN = ["storm", "cooling", "heating"];
  * Whether the engine is positioning this cover right now.
  *
  * Off the decision sensor's own state, which is the intent, rather than off
- * the switches behind it: the engine has already weighed them, and a second
+ * the entities behind it: the engine has already weighed them, and a second
  * reading of the same thing is a second answer waiting to disagree.
  *
  * Read as a visibility condition rather than settled here: a strategy runs
@@ -588,11 +608,11 @@ function overviewView(hub, covers, t) {
   const sections = [];
 
   if (hub) {
-    // The central controls stay: the master switch, what it is doing, the
-    // storm sensor and pause-all / resume-all.
+    // The central controls stay: the mode, what it is doing, the storm
+    // sensors and the pause and resume buttons.
     const cards = [{ type: "heading", heading: t.control }];
-    const enabled = pick(hub, "enabled", "switch");
-    if (enabled) cards.push({ type: "tile", ...enabled });
+    const mode = pick(hub, "mode", "select");
+    if (mode) cards.push(modeTile(mode));
     const status = pick(hub, "status", "sensor");
     if (status) {
       // The count alone does not say what it counts, so break it down.
@@ -603,6 +623,8 @@ function overviewView(hub, covers, t) {
     }
     const storm = pick(hub, "storm_active", "binary_sensor");
     if (storm) cards.push({ type: "tile", ...storm });
+    const stormPaused = pick(hub, "storm_paused");
+    if (stormPaused) cards.push({ type: "tile", ...stormPaused });
     for (const button of hub.buttons) {
       cards.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
     }
@@ -753,7 +775,11 @@ function coverView(cover, t) {
               criterion(
                 t.cStorm,
                 `is_state('${cover.stormEntity}', 'off')`,
-                num(decision, "wind_speed", 1, " km/h"),
+                num(decision, "wind_speed", 1, " km/h")
+                  + (cover.stormPausedEntity
+                    ? `{% if is_state('${cover.stormPausedEntity}', 'on') %}`
+                      + ` · ${t.stormPaused}{% endif %}`
+                    : ""),
               ),
             ]
           : []),
@@ -763,9 +789,7 @@ function coverView(cover, t) {
         ...(cover.overrideEntity
           ? [criterion(t.cOverride, `is_state('${cover.overrideEntity}', 'off')`, "")]
           : []),
-        ...(cover.enabledEntity
-          ? [criterion(t.cEnabled, `is_state('${cover.enabledEntity}', 'on')`, "")]
-          : []),
+        criterion(t.cMode, `${a("mode")} != 'off'`, modeWord(decision, t)),
       ].join("\n"),
     },
     ...(cover.todayEntity ? [todayCard(cover.todayEntity, decision)] : []),
@@ -789,8 +813,8 @@ function coverView(cover, t) {
       features: [{ type: "cover-open-close" }, { type: "cover-position" }],
     });
   }
-  const enabled = pick(cover, "enabled", "switch");
-  if (enabled) controls.push({ type: "tile", ...enabled });
+  const mode = pick(cover, "mode", "select");
+  if (mode) controls.push(modeTile(mode));
   for (const button of cover.buttons) {
     controls.push({ type: "tile", ...button, tap_action: { action: "toggle" } });
   }

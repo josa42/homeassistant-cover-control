@@ -14,6 +14,7 @@ from custom_components.cover_control.const import (
     MANUAL_GROUP,
     SETTLE_TIME,
     STORAGE_KEY,
+    Mode,
 )
 
 from .conftest import COVER
@@ -608,7 +609,7 @@ async def test_the_day_list_empties_when_the_day_turns(
     await setup_entry(entry)
     assert hass.states.get("sensor.raffstore_today").state == "1"
 
-    await entry.runtime_data.async_set_master(False)
+    await entry.runtime_data.async_set_mode(Mode.OFF)
     freezer.tick(timedelta(days=1))
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()

@@ -30,9 +30,11 @@ from custom_components.cover_control.const import (
     CONF_WIND_THRESHOLD,
     CONF_WINDOW_HEIGHT,
     PV_OVERRIDE_SUSTAIN,
+    Cause,
     CoverType,
     Facade,
     Intent,
+    Mode,
     Reason,
     StormAction,
 )
@@ -82,15 +84,15 @@ def run(
     state: EpisodeState | None = None,
     cover: dict | None = None,
     hub: dict | None = None,
-    master: bool = True,
-    enabled: bool = True,
+    mode: Mode = Mode.AUTO,
+    storm_paused: bool = False,
     **overrides,
 ):
     """Evaluate one cover with the sunny-and-hot baseline."""
     config = EffectiveConfig({**HUB, **(hub or {})}, {**COVER, **(cover or {})})
     inputs = Inputs(**{**SUNNY_AND_HOT, **overrides})
     return evaluate(
-        inputs, config, state or EpisodeState(), "cover.test", master, enabled
+        inputs, config, state or EpisodeState(), "cover.test", mode, storm_paused
     )
 
 
@@ -211,15 +213,76 @@ def test_open_window_can_be_opted_out_per_cover() -> None:
     assert attributes["window_ok"] is True
 
 
-def test_master_switch_off_stops_everything() -> None:
-    decision, _ = run(master=False)
+def test_mode_off_leaves_the_cover_alone() -> None:
+    decision, _ = run(mode=Mode.OFF)
     assert decision.intent is Intent.DISABLED
-    assert decision.reason is Reason.MASTER_DISABLED
+    assert decision.reason is Reason.MODE_OFF
+    assert decision.target_position is None
+    assert decision.mode is Mode.OFF
 
 
-def test_cover_switch_off_stops_that_cover() -> None:
-    decision, _ = run(enabled=False)
-    assert decision.reason is Reason.COVER_DISABLED
+def test_storm_outranks_mode_off() -> None:
+    decision, state = run(mode=Mode.OFF, wind_speed=55.0)
+    assert decision.intent is Intent.STORM
+    assert decision.target_position == 100
+    assert state.storm_latched
+
+
+def test_paused_storm_protection_does_not_act() -> None:
+    decision, state = run(storm_paused=True, wind_speed=55.0)
+    assert decision.intent is Intent.COOLING, "the rest carries on as normal"
+    assert state.storm_latched, "the storm is still tracked"
+    assert "paused" in next(g for g in decision.gates if g.name == "storm").detail
+
+
+def test_a_storm_pause_running_out_mid_storm_protects_at_once() -> None:
+    _, state = run(storm_paused=True, wind_speed=55.0)
+    # Below the trigger, above the release: the latch alone holds the storm.
+    decision, _ = run(state, wind_speed=35.0)
+    assert decision.intent is Intent.STORM
+
+
+def test_mode_cool_shades_but_does_not_heat() -> None:
+    assert run(mode=Mode.COOL)[0].intent is Intent.COOLING
+    decision, state = run(mode=Mode.COOL, outdoor_temp=5.0)
+    assert decision.intent is Intent.NEUTRAL
+    assert decision.reason is Reason.MODE_EXCLUDES
+    assert decision.target_position is None
+    assert not state.active
+    # The temperature still called for it; it was the mode that said no.
+    assert decision.gate_passed("temperature")
+
+
+def test_mode_heat_heats_but_does_not_shade() -> None:
+    assert run(mode=Mode.HEAT, outdoor_temp=5.0)[0].intent is Intent.HEATING
+    decision, _ = run(mode=Mode.HEAT)
+    assert decision.reason is Reason.MODE_EXCLUDES
+    assert "shading" in decision.message
+
+
+def test_a_mode_that_rules_out_the_episode_ends_it_at_once() -> None:
+    _, shading = run()
+    assert shading.active
+
+    decision, state = run(shading, mode=Mode.HEAT)
+    assert decision.reason is Reason.EPISODE_ENDED, "no debounce for a choice"
+    assert decision.cause is Cause.MODE_CHANGED
+    assert decision.target_position == 100
+    assert not state.active
+
+
+def test_a_mode_that_still_allows_the_episode_keeps_it() -> None:
+    _, shading = run()
+    decision, state = run(shading, mode=Mode.COOL)
+    assert decision.intent is Intent.COOLING
+    assert state.active
+
+
+def test_mode_off_mid_episode_holds_the_cover_where_it_is() -> None:
+    _, shading = run()
+    decision, state = run(shading, mode=Mode.OFF)
+    assert decision.target_position is None
+    assert state.active, "picked up again, or ended the usual way, once back on"
 
 
 def test_unavailable_cover_is_not_evaluated() -> None:
@@ -481,9 +544,8 @@ def test_every_decision_records_the_gates_it_applied() -> None:
     names = [gate.name for gate in decision.gates]
     assert names == [
         "cover_available",
-        "master_enabled",
-        "cover_enabled",
         "storm",
+        "mode",
         "window_closed",
         "not_paused",
         "sun_available",
