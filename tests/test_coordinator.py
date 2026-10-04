@@ -716,9 +716,18 @@ def stored(hass_storage) -> dict:
 
 
 async def test_the_days_list_survives_a_restart(
-    hass: HomeAssistant, entry: MockConfigEntry, set_scene, setup_entry, hass_storage
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    set_scene,
+    setup_entry,
+    hass_storage,
+    freezer,
 ) -> None:
     """Restarting at noon must not lose the morning."""
+    # Noon in the local zone, as the docstring says. Left to the clock, two
+    # hours earlier falls on yesterday whenever the test runs just after
+    # local midnight, and yesterday's entries are rightly dropped.
+    freezer.move_to(dt_util.start_of_local_day() + timedelta(hours=12))
     morning = dt_util.utcnow() - timedelta(hours=2)
     hass_storage[STORAGE_KEY] = {
         "version": 1,

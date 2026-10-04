@@ -26,6 +26,12 @@
 - **Storm protection outranks everything, the mode being off included.** It
   used to stop with the enable switches.
 
+### Fixed
+
+- **The restart test for the day's list passes just after midnight.** It
+  pretended the morning was two hours ago, which after local midnight is
+  yesterday, so it failed for two hours every night.
+
 ## 1.15.0 - 2026-10-03
 
 ### Changed
