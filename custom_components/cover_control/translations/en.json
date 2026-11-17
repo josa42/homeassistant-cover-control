@@ -105,6 +105,7 @@
           "title": "Configure {cover}",
           "description": "Orientation and size drive the shading geometry. The cover type is pre-selected from what the cover reports it can do.",
           "data": {
+            "cover_entity": "Cover",
             "name": "Name",
             "cover_type": "Cover type",
             "facade": "Side of the house",
@@ -124,6 +125,7 @@
             "dry_run": "Dry run"
           },
           "data_description": {
+            "cover_entity": "Swap this for another cover, for example after a motor was replaced and came back under a new entity. Everything set here stays as it is.",
             "facade": "Which side this window is on. The bearing comes from this and the orientation of the house.",
             "azimuth": "Only for a window that is on none of the four sides, in a bay or a dormer. Leave empty to use the side of the house, which is what almost every window wants.",
             "max_penetration_depth": "0 m means no direct sun in the room at all, which closes the cover fully whenever the sun is on the window.",

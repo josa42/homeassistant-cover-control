@@ -268,6 +268,16 @@ class CoverSubentryFlow(ConfigSubentryFlow):
             return entity_id
         return state.attributes.get("friendly_name") or entity_id
 
+    def _configured_covers(self) -> set[str]:
+        """Covers some other subentry already controls."""
+        current = self._existing.get(CONF_COVER_ENTITY)
+        return {
+            subentry.data[CONF_COVER_ENTITY]
+            for subentry in self._get_entry().subentries.values()
+            if subentry.subentry_type == SUBENTRY_TYPE_COVER
+            and subentry.data[CONF_COVER_ENTITY] != current
+        }
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
@@ -276,18 +286,14 @@ class CoverSubentryFlow(ConfigSubentryFlow):
             self._cover_entity = user_input[CONF_COVER_ENTITY]
             return await self.async_step_configure()
 
-        configured = {
-            subentry.data[CONF_COVER_ENTITY]
-            for subentry in self._get_entry().subentries.values()
-            if subentry.subentry_type == SUBENTRY_TYPE_COVER
-        }
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_COVER_ENTITY): selector.EntitySelector(
                         selector.EntitySelectorConfig(
-                            domain="cover", exclude_entities=sorted(configured)
+                            domain="cover",
+                            exclude_entities=sorted(self._configured_covers()),
                         )
                     )
                 }
@@ -311,7 +317,12 @@ class CoverSubentryFlow(ConfigSubentryFlow):
         entity_id = self._cover_entity
 
         if user_input is not None:
-            data = {CONF_COVER_ENTITY: entity_id, **user_input}
+            # Reconfiguring may swap the cover for another one, for a motor
+            # that was replaced and came back under a new entity id. The
+            # subentry and everything keyed by it stay the same. The selector
+            # already refuses a cover some other subentry controls.
+            entity_id = user_input.get(CONF_COVER_ENTITY, entity_id)
+            data = {**user_input, CONF_COVER_ENTITY: entity_id}
             title = data.pop("name", None) or self._default_name(entity_id)
             if self._existing:
                 return self.async_update_and_abort(
@@ -328,7 +339,17 @@ class CoverSubentryFlow(ConfigSubentryFlow):
         def suggest(key: str, fallback: Any = None):
             return {"suggested_value": existing.get(key, fallback)}
 
-        fields: dict[Any, Any] = {
+        fields: dict[Any, Any] = {}
+        if existing:
+            fields[vol.Required(CONF_COVER_ENTITY, default=entity_id)] = (
+                selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain="cover",
+                        exclude_entities=sorted(self._configured_covers()),
+                    )
+                )
+            )
+        fields |= {
             vol.Required(
                 "name", description=suggest("name", self._default_name(entity_id))
             ): selector.TextSelector(),

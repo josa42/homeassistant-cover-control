@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A cover's entity can be changed.** Reconfiguring a cover now offers the
+  cover entity as well, so a motor that was replaced and came back under a
+  new entity id keeps its settings, its entities and the day's list. A cover
+  that another one already controls cannot be picked.
+
 ## 1.16.0 - 2026-10-04
 
 ### Added

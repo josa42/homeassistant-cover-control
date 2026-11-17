@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 import voluptuous as vol
 from homeassistant.config_entries import SOURCE_USER, ConfigSubentryData
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.cover_control.const import (
@@ -268,3 +269,98 @@ async def test_the_slat_angle_is_an_optional_override_on_a_cover(
     )
     key = next(k for k in result["data_schema"].schema if str(k) == CONF_SHADED_TILT)
     assert isinstance(key, vol.Optional), "a cover must be able to leave it empty"
+
+
+COVER_INPUT = {
+    "name": "Bedroom",
+    CONF_COVER_TYPE: CoverType.ROLLADEN,
+    CONF_WINDOW_HEIGHT: 2.0,
+    CONF_SILL_HEIGHT: 0.0,
+    CONF_MAX_DEPTH: 0.0,
+    "fov_left": 90.0,
+    "fov_right": 90.0,
+    CONF_STORM_ACTION: StormAction.IGNORE,
+    "shade_with_window_open": False,
+}
+
+
+def _two_covers(hass: HomeAssistant) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=HUB_INPUT,
+        subentries_data=[
+            ConfigSubentryData(
+                data={CONF_COVER_ENTITY: entity_id, CONF_AZIMUTH: 60.0},
+                subentry_type="cover",
+                title=title,
+                unique_id=None,
+            )
+            for entity_id, title in (
+                ("cover.bedroom", "Bedroom"),
+                ("cover.kitchen", "Kitchen"),
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    for entity_id in ("cover.bedroom", "cover.kitchen", "cover.new_motor"):
+        hass.states.async_set(entity_id, "open", {"supported_features": 15})
+    return entry
+
+
+async def test_reconfiguring_a_cover_can_swap_its_entity(hass: HomeAssistant) -> None:
+    """A replaced motor comes back under a new entity id; the rest stays."""
+    entry = _two_covers(hass)
+    subentry_id = next(
+        s.subentry_id
+        for s in entry.subentries.values()
+        if s.data[CONF_COVER_ENTITY] == "cover.bedroom"
+    )
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    assert schema_defaults(result["data_schema"])[CONF_COVER_ENTITY] == "cover.bedroom"
+    key = next(k for k in result["data_schema"].schema if str(k) == CONF_COVER_ENTITY)
+    selector_config = result["data_schema"].schema[key].config
+    assert selector_config["exclude_entities"] == ["cover.kitchen"]
+
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"],
+        {**COVER_INPUT, CONF_COVER_ENTITY: "cover.new_motor", CONF_AZIMUTH: 60.0},
+    )
+    assert result["type"] is FlowResultType.ABORT
+    subentry = entry.subentries[subentry_id]
+    assert subentry.data[CONF_COVER_ENTITY] == "cover.new_motor"
+    assert subentry.data[CONF_AZIMUTH] == 60.0
+
+
+async def test_reconfiguring_cannot_take_a_cover_another_one_controls(
+    hass: HomeAssistant,
+) -> None:
+    entry = _two_covers(hass)
+    subentry_id = next(
+        s.subentry_id
+        for s in entry.subentries.values()
+        if s.data[CONF_COVER_ENTITY] == "cover.bedroom"
+    )
+
+    result = await entry.start_subentry_reconfigure_flow(hass, subentry_id)
+    with pytest.raises(InvalidData):
+        await hass.config_entries.subentries.async_configure(
+            result["flow_id"], {**COVER_INPUT, CONF_COVER_ENTITY: "cover.kitchen"}
+        )
+    assert entry.subentries[subentry_id].data[CONF_COVER_ENTITY] == "cover.bedroom"
+
+
+async def test_adding_a_cover_does_not_ask_for_the_entity_twice(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data=HUB_INPUT)
+    entry.add_to_hass(hass)
+    hass.states.async_set("cover.bedroom", "open", {"supported_features": 15})
+
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "cover"), context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {CONF_COVER_ENTITY: "cover.bedroom"}
+    )
+    assert CONF_COVER_ENTITY not in schema_fields(result["data_schema"])

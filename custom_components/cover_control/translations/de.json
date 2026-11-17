@@ -105,6 +105,7 @@
           "title": "{cover} einrichten",
           "description": "Ausrichtung und Größe bestimmen die Beschattungsgeometrie. Der Typ ist anhand der gemeldeten Fähigkeiten vorausgewählt.",
           "data": {
+            "cover_entity": "Rollladen",
             "name": "Name",
             "cover_type": "Typ",
             "facade": "Hausseite",
@@ -124,6 +125,7 @@
             "dry_run": "Testlauf"
           },
           "data_description": {
+            "cover_entity": "Gegen einen anderen Rollladen tauschen, etwa wenn ein Motor ersetzt wurde und unter einer neuen Entität zurückkam. Alle Einstellungen hier bleiben erhalten.",
             "facade": "Auf welcher Seite dieses Fenster liegt. Die Himmelsrichtung ergibt sich daraus und aus der Ausrichtung des Hauses.",
             "azimuth": "Nur für ein Fenster, das auf keiner der vier Seiten liegt, etwa im Erker oder in der Gaube. Leer lassen, um die Hausseite zu verwenden, was fast jedes Fenster möchte.",
             "max_penetration_depth": "0 m bedeutet gar keine direkte Sonne im Raum und schließt den Rollladen vollständig, sobald die Sonne auf das Fenster trifft.",
