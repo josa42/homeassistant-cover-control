@@ -24,6 +24,9 @@ you put it until the next day.
 - Home Assistant **2026.9.0** or newer
 - At least one cover that accepts a position
 
+[Manual installation](docs/manual_installation.md) covers adding the repository
+by hand and installing without HACS.
+
 <br><br>
 
 ## Configuration
